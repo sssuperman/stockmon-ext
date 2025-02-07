@@ -1,0 +1,89 @@
+# Stock Monitor (股票監控)
+
+A powerful VSCode extension for monitoring Taiwan stock market prices in real-time. Perfect for developers who want to keep an eye on their investments while coding.
+
+這是一個強大的 VS Code 擴展，用於即時監控台股股價。適合想在寫程式時同時關注投資的開發者。
+
+## Features 功能
+
+- 🔄 Real-time stock price monitoring in VSCode status bar
+  - 在 VS Code 狀態欄即時顯示股價資訊
+- 📊 Support multiple stock symbols simultaneously
+  - 支援多支股票同時監控
+- ⏰ Automatic updates
+  - 自動定時更新
+- 📈 Price change indicators (up/down)
+  - 股價漲跌顯示
+- 🔔 Price alerts and notifications
+  - 價格提醒通知功能
+- 🔐 Secure login system for data synchronization
+  - 安全的登入系統，支援資料同步
+- 🌐 WebSocket support for real-time updates
+  - WebSocket 支援，提供即時更新
+
+## Installation 安裝方式
+
+1. Open VSCode
+2. Press `Ctrl+P` or `Cmd+P`
+3. Type `ext install sssuperman.stockmon`
+
+## Usage 使用方法
+
+1. Press `Cmd+Shift+P` (Mac) or `Ctrl+Shift+P` (Windows/Linux) to open command palette
+   按下 `Cmd+Shift+P` (Mac) 或 `Ctrl+Shift+P` (Windows/Linux) 開啟命令面板
+2. Type "StockMon: Add Stock Symbol" to add stocks for monitoring
+   輸入 "StockMon: Add Stock Symbol" 來新增要監控的股票
+3. Enter stock symbols (multiple symbols separated by commas, e.g., 2330,2317,2454)
+   在輸入框中輸入股票代號（多個股票用逗號分隔，例如：2330,2317,2454）
+4. Stock prices will appear in the VSCode status bar and update automatically
+   股價會顯示在 VS Code 下方的狀態欄，並自動更新
+
+## Settings 設定選項
+
+This extension provides the following settings:
+此擴展提供以下設定選項：
+
+* `stockmon.symbols`: List of stock symbols to monitor
+  要監控的股票代號列表
+* `stockmon.refreshInterval`: Update interval in minutes
+  更新間隔（分鐘）
+
+## Security & Privacy 安全性與隱私
+
+- All network communications are encrypted using HTTPS/WSS
+  所有網路通訊皆使用 HTTPS/WSS 加密
+- No personal data is collected except for basic usage statistics
+  除基本使用統計外，不收集個人資料
+- Login credentials are stored securely using VSCode's built-in secret storage
+  登入憑證使用 VSCode 內建的安全儲存機制
+
+## Known Issues 已知問題
+
+- Stock prices may have a slight delay (up to 1 minute) due to market data restrictions
+  因市場資料限制，股價可能會有最多 1 分鐘的延遲
+
+## Support & Feedback 支援與回饋
+
+- Report issues on [GitHub](https://github.com/sssuperman/stock-monitor/issues)
+  在 GitHub 上回報問題
+- Send feedback via [email](mailto:your.email@example.com)
+  透過 email 發送回饋
+
+## Release Notes 版本資訊
+
+### 0.1.7
+- Added WebSocket support for real-time updates
+  新增 WebSocket 支援，提供即時更新
+- Improved error handling and notifications
+  改善錯誤處理與通知機制
+- Added price alerts feature
+  新增價格提醒功能
+
+### 0.1.0
+- Initial release with basic monitoring features
+  初始版本發布，包含基本監控功能
+
+## License 授權條款
+
+This extension is licensed under the MIT License.
+此擴展採用 MIT 授權條款。

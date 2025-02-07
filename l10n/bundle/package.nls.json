@@ -1,0 +1,16 @@
+{
+    "stockmon.category": "StockMon",
+    "stockmon.addStock": "Add Stock Symbol",
+    "stockmon.searchStocks": "Search Stocks",
+    "stockmon.deleteStock": "Delete Stock Symbol",
+    "stockmon.refresh": "Refresh Stock Price",
+    "stockmon.setCost": "Set Stock Cost",
+    "stockmon.setPriceAlert": "Set Price Alert",
+    "stockmon.managePriceAlerts": "Manage Price Alerts",
+    "stockmon.manualCheckPriceAlerts": "Manual Check Price Alerts",
+    "stockmon.login": "Login",
+    "stockmon.logout": "Logout",
+    "stockmon.showPanel": "Show Stock Monitor Panel",
+    "stockmon.symbols.description": "List of stock symbols to monitor",
+    "stockmon.refreshInterval.description": "Refresh interval (minutes)"
+} 
