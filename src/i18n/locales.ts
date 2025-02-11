@@ -91,6 +91,7 @@ export interface LocaleMessages {
         logout: string;
         showPanel: string;
         clearAllSubscriptions: string;
+        showSessionInfo: string;
     };
     config: {
         symbolsDescription: string;
@@ -200,7 +201,8 @@ const zhTW: LocaleMessages = {
         login: '登入',
         logout: '登出',
         showPanel: '顯示股票監控面板',
-        clearAllSubscriptions: '清除所有訂閱'
+        clearAllSubscriptions: '清除所有訂閱',
+        showSessionInfo: '顯示會話資訊'
     },
     config: {
         symbolsDescription: '要監控的股票代號列表',
@@ -310,7 +312,8 @@ const enUS: LocaleMessages = {
         login: 'Login',
         logout: 'Logout',
         showPanel: 'Show Stock Monitor Panel',
-        clearAllSubscriptions: 'Clear All Subscriptions'
+        clearAllSubscriptions: 'Clear All Subscriptions',
+        showSessionInfo: 'Show Session Info'
     },
     config: {
         symbolsDescription: 'List of stock symbols to monitor',

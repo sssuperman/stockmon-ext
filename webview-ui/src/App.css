@@ -1,0 +1,160 @@
+.container {
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.actions {
+    margin: 20px 0;
+    display: flex;
+    gap: 10px;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    background: var(--vscode-editor-background);
+    border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.connection-status {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.connection-status.connected {
+    background-color: var(--vscode-debugIcon-startForeground);
+    color: var(--vscode-button-foreground);
+}
+
+.connection-status.disconnected {
+    background-color: var(--vscode-debugIcon-stopForeground);
+    color: var(--vscode-button-foreground);
+}
+
+.stock-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    padding: 16px;
+}
+
+.stock-card {
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 4px;
+    padding: 16px;
+    position: relative;
+}
+
+.stock-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+
+.stock-title {
+    display: flex;
+    flex-direction: column;
+}
+
+.stock-symbol {
+    font-size: 1.2em;
+    font-weight: bold;
+}
+
+.stock-name {
+    font-size: 0.9em;
+    opacity: 0.7;
+}
+
+.stock-price-container {
+    text-align: right;
+}
+
+.stock-price {
+    font-size: 1.2em;
+    font-weight: bold;
+}
+
+.stock-change {
+    font-size: 0.9em;
+}
+
+.profit-up {
+    color: var(--vscode-terminal-ansiGreen);
+}
+
+.profit-down {
+    color: var(--vscode-terminal-ansiRed);
+}
+
+.stock-details {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+}
+
+.cost-info, .profit-info {
+    font-size: 0.9em;
+}
+
+.stock-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+}
+
+.menu-container {
+    position: relative;
+}
+
+.menu-dropdown {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background: var(--vscode-menu-background);
+    border: 1px solid var(--vscode-menu-border);
+    border-radius: 4px;
+    box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    min-width: 120px;
+}
+
+.menu-dropdown vscode-button {
+    width: 100%;
+    justify-content: flex-start;
+    padding: 4px 8px;
+}
+
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 0.9em;
+}
+
+.status-badge.connected {
+    background: var(--vscode-terminal-ansiGreen);
+    color: var(--vscode-editor-background);
+}
+
+.status-badge.connecting {
+    background: var(--vscode-terminal-ansiYellow);
+    color: var(--vscode-editor-background);
+}
+
+.status-badge.offline {
+    background: var(--vscode-terminal-ansiRed);
+    color: var(--vscode-editor-background);
+}
+
+.actions {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+} 

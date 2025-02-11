@@ -1,14 +1,28 @@
 import { WebSocket } from 'ws';
 
-export interface StockInfo {
+export interface StockInventory {
     symbol: string;
     name: string;
-    current_price: number;
-    previous_close?: number;
-    change?: number;
-    change_percent?: number;
-    volume: number;
-    date: string;
+    price: number;
+    change: number;
+    changePercent: number;
+    isRealtime: boolean;
+    shares?: number;
+    profit?: number;
+    profitPercent?: number;
+    type?: string;
+    exchange?: string;
+    market?: string;
+    bid?: number;
+    ask?: number;
+    size?: number;
+    volume?: number;
+    isClose?: boolean;
+    time?: string;
+    serial?: number;
+    cost?: StockCostData;
+    alerts: PriceAlert[];
+    isSubscribed: boolean;
 }
 
 export interface StockSearchResult {
@@ -30,7 +44,7 @@ export interface WebSocketMessage {
 export interface StockUpdate {
     type: 'stock_update';
     symbol: string;
-    data: StockInfo;
+    data: StockInventory;
 }
 
 export interface ClientUuidMessage {
@@ -39,33 +53,9 @@ export interface ClientUuidMessage {
 }
 
 export interface PriceAlert {
-    symbol: string;
-    targetPrice: number;
-    isAbove: boolean;
-    triggered: boolean;
-}
-
-export interface StockData {
-    symbol: string;
-    name: string;
     price: number;
-    change: number;
-    changePercent: number;
-    isRealtime: boolean;
-    cost?: number;
-    shares?: number;
-    profit?: number;
-    profitPercent?: number;
-    type?: string;
-    exchange?: string;
-    market?: string;
-    bid?: number;
-    ask?: number;
-    size?: number;
-    volume?: number;
-    isClose?: boolean;
-    time?: string;
-    serial?: number;
+    type: 'above' | 'below';
+    triggered: boolean;
 }
 
 export interface ExtendedWebSocket {
@@ -109,6 +99,33 @@ export interface SubscriptionMessage {
 }
 
 export interface StockCostData {
+    quantity: number;
     cost: number;
-    shares: number;
+    averageCost: number;
+}
+
+export interface ServerStockData {
+    stock_id: number;
+    stock_symbol: string;
+    stock_name: string;
+    quantity: number;
+    average_cost: number;
+    current_price?: number;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface SyncQueueItem {
+    type: 'ADD' | 'UPDATE' | 'DELETE';
+    symbol: string;
+    data?: StockCostData;
+    timestamp: number;
 } 
+
+export enum WebSocketState {
+    CLOSED = 'CLOSED',
+    CONNECTING = 'CONNECTING',
+    CONNECTED = 'CONNECTED',
+    RECONNECTING = 'RECONNECTING',
+    ERROR = 'ERROR'
+}

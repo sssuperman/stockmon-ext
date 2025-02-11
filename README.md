@@ -33,9 +33,7 @@ A powerful VSCode extension for monitoring Taiwan stock market prices in real-ti
    按下 `Cmd+Shift+P` (Mac) 或 `Ctrl+Shift+P` (Windows/Linux) 開啟命令面板
 2. Type "StockMon: Add Stock Symbol" to add stocks for monitoring
    輸入 "StockMon: Add Stock Symbol" 來新增要監控的股票
-3. Enter stock symbols (multiple symbols separated by commas, e.g., 2330,2317,2454)
-   在輸入框中輸入股票代號（多個股票用逗號分隔，例如：2330,2317,2454）
-4. Stock prices will appear in the VSCode status bar and update automatically
+3. Stock prices will appear in the VSCode status bar and update automatically
    股價會顯示在 VS Code 下方的狀態欄，並自動更新
 
 ## Settings 設定選項

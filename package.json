@@ -2,7 +2,7 @@
   "name": "stockmon",
   "displayName": "stock-monitor",
   "description": "A stock monitoring and analysis platform. Stock Mate for Programmer",
-  "version": "0.1.11",
+  "version": "0.2.1",
   "publisher": "stockmon",
   "license": "MIT",
   "icon": "./resources/icon.png",
@@ -82,17 +82,34 @@
       },
       {
         "command": "stockmon.showPanel",
-        "title": "Show Stock Monitor Panel",
-        "category": "StockMon"
+        "title": "Show Stock Monitor",
+        "category": "Stock Monitor"
       },
       {
         "command": "stockmon.clearAllSubscriptions",
         "title": "Clear All Stock Subscriptions",
         "category": "StockMon"
+      },
+      {
+        "command": "stockmon.switchToDevelopment",
+        "title": "Switch to Development Environment"
+      },
+      {
+        "command": "stockmon.switchToProduction",
+        "title": "Switch to Production Environment"
+      },
+      {
+        "command": "stockmon.listStock",
+        "title": "StockMon: List Current Stocks"
+      },
+      {
+        "command": "stockmon.showSessionInfo",
+        "title": "Show Session Info",
+        "category": "StockMon"
       }
     ],
     "configuration": {
-      "title": "StockMonitor",
+      "title": "Stock Monitor",
       "properties": {
         "stockmon.symbols": {
           "type": "array",
@@ -106,6 +123,15 @@
           "type": "number",
           "default": 5,
           "description": "%stockmon.refreshInterval.description%"
+        },
+        "stockmon.environment": {
+          "type": "string",
+          "enum": [
+            "development",
+            "production"
+          ],
+          "default": "development",
+          "description": "選擇運行環境"
         }
       }
     }
@@ -115,7 +141,11 @@
     "url": "https://github.com/sssuperman/stock-monitor.git"
   },
   "scripts": {
-    "sandbox": "npm run build && code --new-window --extensionDevelopmentPath=$PWD .",
+    "install:all": "npm install && cd webview-ui && npm install",
+    "start:webview": "cd webview-ui && npm run start",
+    "build:webview": "cd webview-ui && npm run build",
+    "sandbox": "rimraf dist && npm run build && code --new-window --extensionDevelopmentPath=$PWD .",
+    "sandbox-cli": "rimraf dist && npm run compile && node ./dist/extension.js",
     "vscode:prepublish": "npm run package",
     "compile": "npm run check-types && npm run lint && node esbuild.js",
     "watch": "npm-run-all -p watch:*",
@@ -133,20 +163,31 @@
   "devDependencies": {
     "@types/mocha": "^10.0.6",
     "@types/node": "18.x",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
     "@types/uuid": "^10.0.0",
     "@types/vscode": "^1.96.0",
     "@types/ws": "^8.5.10",
     "@typescript-eslint/eslint-plugin": "^6.19.1",
     "@typescript-eslint/parser": "^6.19.1",
+    "@vitejs/plugin-react": "^4.0.0",
     "@vscode/test-electron": "^2.3.8",
     "esbuild": "^0.19.12",
-    "eslint": "^8.56.0",
+    "esbuild-plugin-copy": "^2.1.1",
     "mocha": "^10.2.0",
-    "typescript": "^4.9.5"
+    "npm-run-all": "^4.1.5",
+    "rimraf": "^5.0.10",
+    "typescript": "^4.x.x",
+    "vite": "^4.3.9"
   },
   "dependencies": {
+    "@vscode/webview-ui-toolkit": "^1.2.2",
     "axios": "^1.6.5",
+    "eslint": "^8.57.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "uuid": "^11.0.5",
-    "ws": "^8.16.0"
+    "ws": "^8.16.0",
+    "zustand": "^5.0.3"
   }
 }

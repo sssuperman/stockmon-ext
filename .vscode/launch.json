@@ -12,10 +12,25 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}"
 			],
-			"outFiles": [
-				"${workspaceFolder}/dist/**/*.js"
+			"preLaunchTask": "npm: watch",
+			"sourceMaps": true,
+			"resolveSourceMapLocations": [
+				"${workspaceFolder}/**",
+				"!**/node_modules/**"                   
 			],
-			"preLaunchTask": "${defaultBuildTask}"
+			"trace": true,
+			"internalConsoleOptions": "openOnSessionStart"
+			
+		},
+		{
+			"name": "Extension Tests",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--extensionTestsPath=${workspaceFolder}/out/test/suite/index"
+			],
+			"preLaunchTask": "npm: test-compile"
 		}
 	]
 }

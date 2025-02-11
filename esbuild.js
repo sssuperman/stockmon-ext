@@ -35,8 +35,8 @@ async function main() {
 		minifyIdentifiers: production,
 		minifySyntax: production,
 		treeShaking: true,
-		sourcemap: !production,
-		sourcesContent: false,
+		sourcemap: true,
+		sourcesContent: true,
 		platform: 'node',
 		outfile: 'dist/extension.js',
 		external: [
@@ -48,7 +48,7 @@ async function main() {
 		drop: production ? ['console', 'debugger'] : [],
 		logLevel: 'silent',
 		plugins: [
-			esbuildProblemMatcherPlugin,
+			esbuildProblemMatcherPlugin
 		],
 	});
 	if (watch) {
