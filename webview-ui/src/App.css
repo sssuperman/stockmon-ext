@@ -37,7 +37,7 @@
 
 .stock-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: 16px;
     padding: 16px;
 }
@@ -45,52 +45,102 @@
 .stock-card {
     background: var(--vscode-editor-background);
     border: 1px solid var(--vscode-panel-border);
-    border-radius: 4px;
-    padding: 16px;
+    border-radius: 8px;
+    padding: 12px;
     position: relative;
+    min-height: 100px;
 }
 
-.stock-header {
+.stock-title-row {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     margin-bottom: 8px;
 }
 
-.stock-title {
-    display: flex;
-    flex-direction: column;
+.stock-name {
+    font-size: 1.1em;
+    font-weight: bold;
 }
 
 .stock-symbol {
-    font-size: 1.2em;
-    font-weight: bold;
-}
-
-.stock-name {
-    font-size: 0.9em;
+    font-size: 1em;
     opacity: 0.7;
 }
 
-.stock-price-container {
-    text-align: right;
+.stock-price-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.stock-chart-container {
+    width: 15px;
+    height: 25px;
+    display: flex;
+    align-items: flex-start;
+    padding-top: 4px;
+}
+
+.price-info {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.price-main {
+    display: flex;
+    align-items: center;
 }
 
 .stock-price {
-    font-size: 1.2em;
+    font-size: 1.6em;
     font-weight: bold;
+    line-height: 1;
+}
+
+.price-change {
+    text-align: right;
 }
 
 .stock-change {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    font-size: 0.9em;
+    justify-content: flex-end;
+}
+
+.change-percent {
     font-size: 0.9em;
 }
 
-.profit-up {
+/* 上漲和下跌的箭頭會繼承 profit-up/profit-down 的顏色 */
+.profit-up .change-arrow {
+    color: var(--vscode-terminal-ansiRed);
+}
+
+.profit-down .change-arrow {
     color: var(--vscode-terminal-ansiGreen);
 }
 
-.profit-down {
+/* 讓數值和百分比保持原來的對齊方式 */
+.change-value, .change-percent {
+    display: inline-block;
+}
+
+.stock-chart-placeholder {
+    display: none;
+}
+
+.profit-up {
     color: var(--vscode-terminal-ansiRed);
+}
+
+.profit-down {
+    color: var(--vscode-terminal-ansiGreen);
 }
 
 .stock-details {
@@ -105,7 +155,7 @@
 
 .stock-actions {
     position: absolute;
-    top: 8px;
+    bottom: 8px;
     right: 8px;
 }
 
@@ -116,7 +166,8 @@
 .menu-dropdown {
     position: absolute;
     right: 0;
-    top: 100%;
+    bottom: 100%;
+    margin-bottom: 4px;
     background: var(--vscode-menu-background);
     border: 1px solid var(--vscode-menu-border);
     border-radius: 4px;
@@ -157,4 +208,31 @@
 .actions {
     padding: 8px 16px;
     border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+@keyframes flash {
+    0% {
+        background-color: var(--vscode-editor-background);
+    }
+    50% {
+        background-color: var(--vscode-textLink-activeForeground);
+        opacity: 0.2;
+    }
+    100% {
+        background-color: var(--vscode-editor-background);
+    }
+}
+
+.stock-card.flash-update {
+    animation: flash 1s ease-out;
+}
+
+.stock-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.stock-chart {
+    display: flex;
+    align-items: center;
 } 

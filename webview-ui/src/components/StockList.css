@@ -1,0 +1,182 @@
+.stock-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+}
+
+.index-section {
+    padding: 8px;
+    margin-bottom: 8px;
+}
+
+.index-card {
+    background-color: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 8px;
+}
+
+/* 為指數卡片添加特殊樣式 */
+.index-card .stock-header {
+    background: var(--vscode-editor-background);
+    padding: 8px;
+}
+
+.index-card .stock-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.index-card .stock-name {
+    font-size: 1.1em;
+    font-weight: bold;
+    color: var(--vscode-foreground);
+}
+
+.index-card .stock-symbol {
+    color: var(--vscode-textPreformat-foreground);
+    font-size: 0.9em;
+}
+
+.index-card .stock-price-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.index-card .price-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.index-card .stock-price {
+    font-size: 1.2em;
+    font-weight: bold;
+}
+
+/* 調整分隔線樣式 */
+.vscode-divider {
+    margin: 8px 0;
+    border-color: var(--vscode-widget-border);
+}
+
+/* 添加到現有的 CSS 文件中 */
+.index-card .price-details {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    font-size: 0.9em;
+    color: var(--vscode-textPreformat-foreground);
+    margin-left: auto;
+}
+
+.index-card .stock-volume {
+    font-size: 0.9em;
+    color: var(--vscode-textPreformat-foreground);
+}
+
+.profit-up {
+    color: var(--vscode-terminal-ansiRed);
+}
+
+.profit-down {
+    color: var(--vscode-terminal-ansiGreen);
+}
+
+.flash-update {
+    animation: flash 1s ease-out;
+}
+
+@keyframes flash {
+    0% { background-color: var(--vscode-editor-background); }
+    50% { background-color: var(--vscode-textLink-activeForeground); }
+    100% { background-color: var(--vscode-editor-background); }
+}
+
+.trading-info {
+    padding: 8px;
+    font-size: 0.9em;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.price-details, .volume-info {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.price-details > div, .volume-info > div {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 1;
+}
+
+.last-trade {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    background: var(--vscode-editor-background);
+    padding: 4px;
+    border-radius: 4px;
+    overflow: hidden;
+    gap: 4px;
+}
+
+.last-trade > div {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+}
+
+.volume-info {
+    text-align: right;
+    justify-content: flex-end;
+}
+
+/* 調整五檔價格資訊的樣式 */
+.order-book {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px;
+    padding: 8px;
+    font-size: 0.9em;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.order-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 4px;
+    gap: 8px;
+}
+
+.order-row > span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.order-row > span:first-child {
+    flex: 1;
+    text-align: left;
+}
+
+.order-row > span:last-child {
+    flex: 0 0 auto;
+    text-align: right;
+} 
