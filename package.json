@@ -6,6 +6,7 @@
   "publisher": "stockmon",
   "license": "MIT",
   "icon": "./resources/icon.png",
+  "homepage": "https://stockmon.info",
   "keywords": [
     "stock",
     "trading",
