@@ -117,7 +117,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   loadFromGlobalState: (context: vscode.ExtensionContext) => {
     const sessionInfo = context.globalState.get<SessionInfo | null>('sessionInfo', null);
     const authToken = context.globalState.get<string | null>('authToken', null);
-    const clientUuid = context.globalState.get<string>('clientUuid', '');
+    const clientUuid = context.globalState.get<string>('uuid', '');
 
     set({
       sessionInfo,
@@ -129,28 +129,29 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   getOrCreateUuid: (context: vscode.ExtensionContext) => {
     const state = get();
     if (state.clientUuid) {
-      return state.clientUuid;
+        return state.clientUuid;
     }
 
     try {
-      // 先嘗試從 globalState 讀取
-      let uuid = context.globalState.get<string>('uuid');
+        let uuid = context.globalState.get<string>('uuid');
 
-      // 如果不存在，則創建新的
-      if (!uuid) {
-        uuid = uuidv4();
-        context.globalState.update('uuid', uuid);
-      }
+        if (!uuid) {
+            uuid = uuidv4();
+            Promise.resolve(context.globalState.update('uuid', uuid));
+            set({ clientUuid: uuid });
+        } else {
+            set({ clientUuid: uuid });
+        }
 
-      set({ clientUuid: uuid });
-      console.log('UUID created/retrieved:', uuid);
-      return uuid;
+        return uuid;
     } catch (error) {
-      console.error('Error managing UUID:', error);
-      // 如果出錯，至少返回一個新的 UUID
-      const newUuid = uuidv4();
-      set({ clientUuid: newUuid });
-      return newUuid;
+        console.error('Error managing UUID:', error);
+        const newUuid = uuidv4();
+        set({ clientUuid: newUuid });
+        Promise.resolve(context.globalState.update('uuid', newUuid)).catch((error: Error) => 
+            console.error('Failed to save UUID to globalState:', error)
+        );
+        return newUuid;
     }
   },
 
@@ -166,10 +167,8 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   },
   showSessionInfoAndAuthToken: (outputChannel: vscode.OutputChannel) => {
     const { sessionInfo } = get();
-    console.log('Session Info:', sessionInfo);
     outputChannel.appendLine(`Session Info: ${JSON.stringify(sessionInfo)}`);
     const { authToken } = get();
-    console.log('Auth Token:', authToken);
     outputChannel.appendLine(`Auth Token: ${authToken}`);
   },
 

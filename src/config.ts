@@ -8,21 +8,26 @@ interface Environment {
     WS_PROTOCOL: string;
 }
 
-const environments: { [key: string]: Environment } = {
-    development: {
-        API_BASE_URL: 'http://localhost:8000/api',
-        WS_HOST: 'localhost',
-        WS_PORT: 8000,
+// 從設定中獲取開發環境配置
+function getDevelopmentConfig(): Environment {
+    const config = vscode.workspace.getConfiguration('stockmon');
+    const devConfig = config.get('developmentConfig') as {
+        apiBaseUrl: string;
+        wsHost: string;
+        wsPort: number;
+    };
+
+    return {
+        API_BASE_URL: devConfig.apiBaseUrl,
+        WS_HOST: devConfig.wsHost,
+        WS_PORT: devConfig.wsPort,
         WS_PATH: '/ws/stock/',
         WS_PROTOCOL: 'ws'
-    },
-    sandbox: {
-        API_BASE_URL: 'http://localhost:8000/api',
-        WS_HOST: 'localhost',
-        WS_PORT: 8000,
-        WS_PATH: '/ws/stock/',
-        WS_PROTOCOL: 'ws'
-    },
+    };
+}
+
+const environments: { [key: string]: Environment | (() => Environment) } = {
+    development: getDevelopmentConfig,
     production: {
         API_BASE_URL: 'https://srv.stockmon.info/api',
         WS_HOST: 'srv.stockmon.info',
@@ -35,14 +40,19 @@ const environments: { [key: string]: Environment } = {
 // 從環境變數或 VS Code 設置中獲取當前環境
 const currentEnv = (process.env.STOCKMON_ENV || 
     vscode.workspace.getConfiguration('stockmon').get('environment') || 
-    'development') as keyof typeof environments;
+    'production') as keyof typeof environments;
+
+// 獲取當前環境的配置
+const currentConfig = typeof environments[currentEnv] === 'function'
+    ? (environments[currentEnv] as () => Environment)()
+    : environments[currentEnv] as Environment;
 
 // 在控制台輸出當前環境，用於調試
 console.log('Current environment:', currentEnv);
-console.log('Environment config:', environments[currentEnv]);
+console.log('Environment config:', currentConfig);
 
 export const config = {
-    ...environments[currentEnv],
+    ...currentConfig,
     // 其他通用配置
     WS_CONFIG: {
         reconnectInterval: 3000,
@@ -51,7 +61,7 @@ export const config = {
     }
 };
 
-// 方便的 URL 生成器
+// 重命名為 extensionConfig.ts，包含 VSCode 相關配置
 export const urls = {
     auth: {
         login: `${config.API_BASE_URL}/auth/login`,
@@ -76,8 +86,11 @@ export const urls = {
 export async function switchEnvironment(env: 'development' | 'sandbox' | 'production'): Promise<void> {
     await vscode.workspace.getConfiguration('stockmon').update('environment', env, true);
     // 重新載入配置
+    const newConfig = typeof environments[env] === 'function'
+        ? (environments[env] as () => Environment)()
+        : environments[env] as Environment;
     Object.assign(config, {
-        ...environments[env],
+        ...newConfig,
         WS_CONFIG: config.WS_CONFIG
     });
 } 

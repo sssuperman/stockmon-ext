@@ -5,6 +5,8 @@ import { StockInventory } from '../types';
 import { useStockDataStore } from './stockDataStore';
 import { WebSocket } from 'ws';
 import { OutputChannel } from 'vscode';
+import { useSessionStore } from './sessionStore';
+import { ExtensionContextManager } from '../utilities/contextManager';
 
 interface WebSocketStoreState {
   wsState: WebSocketState;
@@ -57,7 +59,17 @@ export const useWebSocketStore = create<WebSocketStoreState>((set, get) => ({
     }
 
     try {
-      const wsUrl = `${config.WS_PROTOCOL}://${config.WS_HOST}:${config.WS_PORT}${config.WS_PATH}`;
+      const context = ExtensionContextManager.getContext();
+      const clientUuid = useSessionStore.getState().getOrCreateUuid(context);
+      const authToken = useSessionStore.getState().authToken;
+      
+      const params = new URLSearchParams();
+      params.append('uuid', clientUuid);
+      if (authToken) {
+        params.append('token', authToken);
+      }
+      
+      const wsUrl = `${config.WS_PROTOCOL}://${config.WS_HOST}:${config.WS_PORT}${config.WS_PATH}?${params.toString()}`;
       outputChannel.appendLine(`WebSocketStore Connecting to WebSocket: ${wsUrl}`);
       if (reconnectAttempts > 0) {
         outputChannel.appendLine(`Reconnect attempt: ${reconnectAttempts + 1}`);
@@ -80,30 +92,63 @@ export const useWebSocketStore = create<WebSocketStoreState>((set, get) => ({
         try {
           const message = JSON.parse(event.data.toString());
           const { outputChannel } = get();
-          outputChannel?.appendLine('=== WebSocket.onmessage ===');
-          outputChannel?.appendLine(`Message type: ${message.type}`);
-          outputChannel?.appendLine(`Raw message: ${event.data.toString()}`);
+          
+          if (!outputChannel) {
+            get().disconnect();
+            return;
+          }
+
+          outputChannel.appendLine('=== WebSocket.onmessage ===');
+          outputChannel.appendLine(`Message type: ${message.type}`);
+          outputChannel.appendLine(`Raw message: ${event.data.toString()}`);
 
           switch (message.type) {
             case 'stock_update':
               const stockData: StockInventory = {
                 symbol: message.symbol,
                 name: message.name || message.symbol,
-                price: message.price,
+                price: message.lastPrice || message.price,
                 change: message.change || 0,
                 changePercent: message.changePercent || 0,
-                isRealtime: true,
-                type: message.type,
-                exchange: message.exchange,
-                market: message.market,
+                open: message.open,
+                high: message.high,
+                low: message.low,
+                close: message.close,
                 volume: message.volume,
+                value: message.value,
+                avgPrice: message.avgPrice,
+                amplitude: message.amplitude,
+                date: message.date,
                 time: new Date(message.time * 1000).toLocaleString(),
-                serial: message.time,
+                serial: message.serial,
+                isRealtime: true,
+                type: 'stock',
+                exchange: message.exchange || '',
+                market: message.market || '',
                 alerts: [],
-                isSubscribed: true
+                isSubscribed: true,
+                
+                // Additional fields for fast channel
+                lastPrice: message.lastPrice,
+                lastSize: message.lastSize,
+                referencePrice: message.referencePrice,
+                previousClose: message.previousClose,
+                bids: message.bids || [],
+                asks: message.asks || [],
+                total: message.total,
+                lastTrade: message.lastTrade,
+                lastTrial: message.lastTrial,
+                isClose: message.isClose
               };
-              useStockDataStore.getState().updateStock(stockData);
-              outputChannel?.appendLine(`WebSocketStore Updated stock data for ${stockData.symbol}`);
+
+              if (message.symbol === 'IX0001') {
+                outputChannel?.appendLine('Updating TWSE index in store');
+                useStockDataStore.getState().updateTwseIndex(stockData);
+                outputChannel?.appendLine(`Updated TWSE index: ${JSON.stringify(stockData)}`);
+              } else {
+                useStockDataStore.getState().updateStock(stockData);
+              }
+              outputChannel?.appendLine(`WebSocketStore Updated data for ${stockData.symbol}`);
               break;
             case 'connection_established':
               set({ wsState: WebSocketState.CONNECTED });
@@ -114,24 +159,24 @@ export const useWebSocketStore = create<WebSocketStoreState>((set, get) => ({
             case 'subscription_error':
               outputChannel?.appendLine(`WebSocketStore Subscription error: ${message.error}`);
               break;
-            case 'unsubscribe_success':
+            case 'unsubscription_success':
               outputChannel?.appendLine(`WebSocketStore Unsubscribe successful: ${message.symbols?.join(', ')}`);
               break;
             case 'pong':
               outputChannel?.appendLine('WebSocketStore Received pong');
               break;
             case 'error':
-              set({ wsState: WebSocketState.CLOSED });
               outputChannel?.appendLine(`WebSocketStore WebSocket error: ${message.error}`);
               break;
             default:
-              set({ wsState: WebSocketState.CLOSED });
               outputChannel?.appendLine(`WebSocketStore Unknown message type: ${message.type}`);
               break;
           }
         } catch (error) {
           const { outputChannel } = get();
-          outputChannel?.appendLine(`=== Error in onmessage ===\n${error}`);
+          if (outputChannel && !outputChannel.dispose) {
+            outputChannel.appendLine(`=== Error in onmessage ===\n${error}`);
+          }
         }
       };
 

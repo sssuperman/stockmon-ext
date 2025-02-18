@@ -1,28 +1,67 @@
 import { WebSocket } from 'ws';
 
+interface OrderBook {
+    price: number;
+    size: number;
+}
+
+interface TradeInfo {
+    bid?: number;
+    ask?: number;
+    price: number;
+    size?: number;
+    volume?: number;
+    time: number;
+    serial?: number;
+}
+
+interface TotalInfo {
+    tradeValue: number;
+    tradeVolume: number;
+    tradeVolumeAtBid: number;
+    tradeVolumeAtAsk: number;
+    transaction: number;
+    time: number;
+}
+
 export interface StockInventory {
     symbol: string;
     name: string;
     price: number;
     change: number;
     changePercent: number;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+    value: number;
+    avgPrice: number;
+    amplitude: number;
+    date: string;
+    time: string;
+    serial: number;
     isRealtime: boolean;
-    shares?: number;
+    type: string;
+    exchange: string;
+    market: string;
+    alerts: PriceAlert[];
+    isSubscribed?: boolean;
+    cost?: StockCostData;
     profit?: number;
     profitPercent?: number;
-    type?: string;
-    exchange?: string;
-    market?: string;
-    bid?: number;
-    ask?: number;
-    size?: number;
-    volume?: number;
+    
+    // New fields for fast channel
+    lastPrice?: number;
+    lastSize?: number;
+    referencePrice?: number;
+    previousClose?: number;
+    bids?: OrderBook[];
+    asks?: OrderBook[];
+    total?: TotalInfo;
+    lastTrade?: TradeInfo;
+    lastTrial?: TradeInfo;
     isClose?: boolean;
-    time?: string;
-    serial?: number;
-    cost?: StockCostData;
-    alerts: PriceAlert[];
-    isSubscribed: boolean;
 }
 
 export interface StockSearchResult {

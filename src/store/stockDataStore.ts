@@ -6,12 +6,12 @@ import { useSessionStore } from './sessionStore';
 import { WebSocketState } from '../types';
 import { urls } from 'src/config';
 import { ExtensionContextManager } from '../utilities/contextManager';
+import { StockPanel } from '../stockPanel';
 
 
 interface StockDataState {
   // 已訂閱的股票資料列表
   stocks: StockInventory[]
-
   updateStock: (stock: StockInventory) => void
   // 向 WebSocket 服務器發送訂閱請求並等待確認
   addSubscription: (symbol: string) => Promise<void>
@@ -27,18 +27,62 @@ interface StockDataState {
   saveToGlobalState: () => void
   searchStocks: (query: string) => Promise<StockSearchResult[]>
   // clearAll: () => void
+  // 新增台股指數相關
+  twseIndex?: StockInventory;  // 用於存放台股指數資料
+  updateTwseIndex: (data: StockInventory) => void;
 }
 
 export const useStockDataStore = create<StockDataState>()((set, get) => ({
   // 已訂閱的股票資料陣列
   stocks: Array<StockInventory>(),
 
-
-  updateStock: (stock: StockInventory) => set((state) => ({
-    stocks: state.stocks.map((s: StockInventory) =>
-      s.symbol === stock.symbol ? { ...s, ...stock } : s
-    )
+  // 新增台股指數相關的實作
+  twseIndex: undefined,
+  
+  updateTwseIndex: (indexData: StockInventory) => set((state) => ({
+    twseIndex: {
+      ...indexData,
+      symbol: 'IX0001',
+      name: '發行量加權股價指數',
+      type: 'index',
+      isRealtime: true,
+    }
   })),
+
+  updateStock: (stockData: StockInventory) => set((state) => {
+    // 如果是台股指數的更新
+    if (stockData.symbol === 'IX0001') {
+      return {
+        ...state,
+        twseIndex: {
+          ...stockData,
+          name: '發行量加權股價指數',
+          type: 'index',
+          isRealtime: true,
+        }
+      };
+    }
+
+    // 原有的股票更新邏輯
+    return {
+      stocks: state.stocks.map((stock: StockInventory) =>
+        stock.symbol === stockData.symbol 
+          ? { 
+              ...stock,
+              ...stockData,
+              cost: stock.cost,
+              alerts: stock.alerts,
+              profit: stock.cost 
+                ? (stockData.price - stock.cost.averageCost) * stock.cost.quantity 
+                : undefined,
+              profitPercent: stock.cost
+                ? ((stockData.price - stock.cost.averageCost) / stock.cost.averageCost) * 100
+                : undefined,
+          } 
+          : stock
+      )
+    };
+  }),
 
   updateStockCost: (symbol, cost) => set((state) => {
     const stockExists = state.stocks.some(s => s.symbol === symbol);
@@ -87,74 +131,97 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
 
   addSubscription: async (symbol: string) => {
     const context = ExtensionContextManager.getContext();
-    const { wsState } = useWebSocketStore.getState();
-    const { outputChannel } = useWebSocketStore.getState();
+    const { wsState, outputChannel } = useWebSocketStore.getState();
+
+    outputChannel?.appendLine(`=== Starting addSubscription for ${symbol} ===`);
+    outputChannel?.appendLine(`Current WebSocket state: ${wsState}`);
 
     if (wsState !== WebSocketState.CONNECTED) {
-      throw new Error('WebSocket not connected');
+        const error = `WebSocket not connected (State: ${wsState})`;
+        outputChannel?.appendLine(`Error: ${error}`);
+        throw new Error(error);
     }
 
     try {
-      // 使用新的 sendAndWait 方法
-      const response = await useWebSocketStore.getState().sendAndWait(
-        {
-          action: 'subscribe',
-          symbols: [symbol],
+        outputChannel?.appendLine(`Sending subscription request for ${symbol}`);
+        const response = await useWebSocketStore.getState().sendAndWait(
+            {
+                action: 'subscribe',
+                symbols: [symbol],
+            },
+            (message) => {
+                outputChannel?.appendLine(`Received response: ${JSON.stringify(message)}`);
+                return message.type === 'subscription_success';
+            },
+            5000
+        );
 
-        },
-        (message) =>
-          message.type === 'subscription_success'
-        ,
-        5000
-      );
+        outputChannel?.appendLine(`Subscription response: ${JSON.stringify(response)}`);
+        outputChannel?.appendLine(`Subscription confirmed for ${symbol}`);
 
-      outputChannel?.appendLine(`Subscription confirmed for ${symbol}`);
+        // 更新本地狀態
+        set((state) => {
+            const existingStock = state.stocks.find(s => s.symbol === symbol);
+            let newStocks;
 
-      // 更新本地狀態
-      set((state) => {
-        const existingStock = state.stocks.find(s => s.symbol === symbol);
-        let newStocks;
+            if (existingStock) {
+                outputChannel?.appendLine(`Updating existing stock ${symbol}`);
+                newStocks = state.stocks.map(s =>
+                    s.symbol === symbol ? { ...s, isSubscribed: true } : s
+                );
+            } else {
+                outputChannel?.appendLine(`Creating new stock entry for ${symbol}`);
+                const newStock: StockInventory = {
+                    symbol,
+                    name: symbol,
+                    price: 0,
+                    change: 0,
+                    changePercent: 0,
+                    open: 0,
+                    high: 0,
+                    low: 0,
+                    close: 0,
+                    volume: 0,
+                    value: 0,
+                    avgPrice: 0,
+                    amplitude: 0,
+                    date: new Date().toISOString().split('T')[0],
+                    time: new Date().toLocaleString(),
+                    serial: Date.now(),
+                    isRealtime: false,
+                    type: 'stock',
+                    exchange: '',
+                    market: '',
+                    alerts: [],
+                    isSubscribed: true,
+                    
+                    // Optional fields can be initialized as undefined
+                    lastPrice: undefined,
+                    lastSize: undefined,
+                    referencePrice: undefined,
+                    previousClose: undefined,
+                    bids: [],
+                    asks: [],
+                    total: undefined,
+                    lastTrade: undefined,
+                    lastTrial: undefined,
+                    isClose: undefined
+                };
+                newStocks = [...state.stocks, newStock];
+            }
 
-        if (existingStock) {
-          outputChannel?.appendLine(`Updating existing stock ${symbol}`);
-          newStocks = state.stocks.map(s =>
-            s.symbol === symbol ? { ...s, isSubscribed: true } : s
-          );
-        } else {
-          outputChannel?.appendLine(`Creating new stock entry for ${symbol}`);
-          const newStock: StockInventory = {
-            symbol,
-            name: symbol,
-            price: 0,
-            change: 0,
-            changePercent: 0,
-            isRealtime: false,
-            type: 'stock',
-            exchange: '',
-            market: '',
-            volume: 0,
-            time: new Date().toLocaleString(),
-            serial: Date.now(),
-            alerts: [],
-            isSubscribed: true
-          };
-          newStocks = [...state.stocks, newStock];
-        }
-
-        if (context) {
-          context.globalState.update('stocks', newStocks);
-        }
-
-        return { stocks: newStocks };
-      });
-
-      // 驗證更新是否成功
-      const updatedStocks = get().stocks;
-      outputChannel?.appendLine(`Updated stocks: ${JSON.stringify(updatedStocks)}`);
+            context.globalState.update('stocks', newStocks);
+            outputChannel?.appendLine(`Updated global state with new stocks`);
+            return { stocks: newStocks };
+        });
 
     } catch (error) {
-      outputChannel?.appendLine(`Subscription error: ${error}`);
-      throw error;
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        outputChannel?.appendLine(`=== Subscription error ===`);
+        outputChannel?.appendLine(`Symbol: ${symbol}`);
+        outputChannel?.appendLine(`Error: ${errorMessage}`);
+        outputChannel?.appendLine(`Stack: ${error instanceof Error ? error.stack : 'No stack trace'}`);
+        throw error;
     }
   },
 
@@ -208,54 +275,22 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
     const context = ExtensionContextManager.getContext();
     const { outputChannel } = useWebSocketStore.getState();
     try {
-      // 從 GlobalState 讀取股票列表
-      const savedStocks = context.globalState.get<StockInventory[]>('stocks', []);
-      outputChannel?.appendLine(`Saved stocks: ${JSON.stringify(savedStocks)}`);
-      const currentStocks = get().stocks;
-
-      // 找出所有需要訂閱的股票
-      const symbolsToSubscribe = savedStocks
-        .filter(savedStock => {
-          // 檢查當前 state 中是否已訂閱
-          const currentStock = currentStocks.find(s => s.symbol === savedStock.symbol);
-          return !currentStock?.isSubscribed;
-        })
-        .map(stock => stock.symbol);
-
-      if (symbolsToSubscribe.length === 0) {
-        return;
-      }
-
-      // 發送訂閱消息
-      useWebSocketStore.getState().sendMessage({
-        action: 'subscribe',
-        symbols: symbolsToSubscribe
-      });
-
-      // 等待訂閱成功消息
-      await useWebSocketStore.getState().waitForMessage(
-        (message) =>
-          message.type === 'subscription_success' &&
-          message.symbols?.some((s: string) => symbolsToSubscribe.includes(s))
-      );
-
-      // 更新訂閱狀態
-      set((state) => {
-        const newStocks = state.stocks.map(stock =>
-          symbolsToSubscribe.includes(stock.symbol)
-            ? { ...stock, isSubscribed: true }
-            : stock
-        );
-
-        // 保存到 GlobalState
-        context.globalState.update('stocks', newStocks);
-
-        return { stocks: newStocks };
-      });
-
+        const savedStocks = context.globalState.get<StockInventory[]>('stocks', []);
+        outputChannel?.appendLine(`Saved stocks: ${JSON.stringify(savedStocks)}`);
+        
+        // Subscribe to each stock individually
+        for (const stock of savedStocks) {
+            try {
+                await useStockDataStore.getState().addSubscription(stock.symbol);
+            } catch (error) {
+                outputChannel?.appendLine(`Failed to subscribe to ${stock.symbol}: ${error}`);
+                // Continue with next stock even if one fails
+                continue;
+            }
+        }
     } catch (error) {
-      console.error('Failed to subscribe to all stocks:', error);
-      throw error;
+        console.error('Failed to subscribe to all stocks:', error);
+        throw error;
     }
   },
 
@@ -307,4 +342,4 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
 
     return response.data?.items || [];
   }
-})); 
+}));

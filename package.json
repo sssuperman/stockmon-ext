@@ -135,15 +135,41 @@
             "development",
             "production"
           ],
-          "default": "development",
+          "default": "production",
           "description": "選擇運行環境"
+        },
+        "stockmon.developmentConfig": {
+          "type": "object",
+          "properties": {
+            "apiBaseUrl": {
+              "type": "string",
+              "default": "http://127.0.0.1/api",
+              "description": "開發環境的 API 基礎 URL"
+            },
+            "wsHost": {
+              "type": "string",
+              "default": "127.0.0.1",
+              "description": "開發環境的 WebSocket host"
+            },
+            "wsPort": {
+              "type": "number",
+              "default": 80,
+              "description": "開發環境的 WebSocket port"
+            }
+          },
+          "default": {
+            "apiBaseUrl": "http://127.0.0.1/api",
+            "wsHost": "127.0.0.1",
+            "wsPort": 80
+          },
+          "description": "開發環境的連線設定"
         }
       }
     }
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/sssuperman/stock-monitor.git"
+    "url": "https://github.com/sssuperman/stockmon-ext.git"
   },
   "scripts": {
     "install:all": "npm install && cd webview-ui && npm install",

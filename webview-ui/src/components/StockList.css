@@ -152,7 +152,7 @@
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 4px;
-    padding: 8px;
+    padding: 4px;
     font-size: 0.9em;
     max-width: 100%;
     overflow: hidden;
@@ -179,4 +179,96 @@
 .order-row > span:last-child {
     flex: 0 0 auto;
     text-align: right;
+}
+
+.order-book-visual {
+    width: 100%;
+    padding: 4px 12px;
+    font-size: 12px;
+    overflow: hidden;
+}
+
+.order-book-header {
+    display: f;
+    grid-template-columns: 40% 20% 20% 40%;
+    text-align: left;
+    margin-bottom: 4px;
+    color: var(--vscode-foreground);
+    opacity: 0.7;
+    font-size: 11px;
+}
+
+.header-cell {
+    padding: 0 4px;
+}
+
+.order-book-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.order-row {
+    display: flex;
+    grid-template-columns: 70px 45px 45px 70px;
+    align-items: center;
+    height: 22px;
+}
+
+.price-cell {
+    text-align: center;
+    padding: 0 2px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.bid-price {
+    color: var(--vscode-terminal-ansiGreen);
+}
+
+.ask-price {
+    color: var(--vscode-terminal-ansiRed);
+}
+
+.size-cell {
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+}
+
+.bid-cell {
+    justify-content: flex-end;
+}
+
+.ask-cell {
+    justify-content: flex-start;
+}
+
+.size-bar {
+    height: 18px;
+    display: flex;
+    align-items: center;
+    padding: 0 4px;
+    color: var(--vscode-editor-background);
+    font-size: 11px;
+    transition: width 0.3s ease;
+    min-width: 24px;
+}
+
+.bid-bar {
+    background-color: var(--vscode-terminal-ansiGreen);
+    text-align: right;
+}
+
+.ask-bar {
+    background-color: var(--vscode-terminal-ansiRed);
+    text-align: left;
+}
+
+.order-book-container {
+    border-top: 1px solid var(--vscode-widget-border);
+    margin-top: 8px;
+    padding: 4px 0;
 } 

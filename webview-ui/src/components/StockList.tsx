@@ -151,6 +151,74 @@ export const StockList: React.FC<StockListProps> = ({ stocks, onDelete, twseInde
         return time;
     };
 
+    // 在 KLineBar 組件後添加新的 OrderBookVisual 組件
+    const OrderBookVisual: React.FC<{
+        bids: Array<{ price: number; size: number }>;
+        asks: Array<{ price: number; size: number }>;
+    }> = ({ bids, asks }) => {
+        // 分別計算買賣方的最大量，確保兩邊的比例一致
+        const maxBidSize = Math.max(...bids.map(b => b.size), 1);
+        const maxAskSize = Math.max(...asks.map(a => a.size), 1);
+        const maxSize = Math.max(maxBidSize, maxAskSize);
+
+        const getBarWidth = (size: number) => {
+            // 降低最大寬度為70%，並設定最小寬度
+            const percentage = (size / maxSize) * 70;
+            // 如果數量很小，返回較小的寬度
+            if (percentage < 15) {
+                return `${Math.max(percentage, 12)}%`;
+            }
+            return `${percentage}%`;
+        };
+
+        return (
+            <div className="order-book-visual">
+                <div className="order-book-header">
+                    <div className="header-cell">委買量</div>
+                    <div className="header-cell">買價</div>
+                    <div className="header-cell">賣價</div>
+                    <div className="header-cell">委賣量</div>
+                </div>
+                <div className="order-book-rows">
+                    {Array.from({ length: 5 }).map((_, index) => {
+                        const bid = bids[index] || { price: 0, size: 0 };
+                        const ask = asks[index] || { price: 0, size: 0 };
+                        return (
+                            <div key={index} className="order-row">
+                                <div className="size-cell bid-cell">
+                                    {bid.size > 0 && (
+                                        <div 
+                                            className="size-bar bid-bar" 
+                                            style={{ width: getBarWidth(bid.size) }}
+                                        >
+                                            {bid.size}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="price-cell bid-price">
+                                    {bid.price > 0 && formatNumber(bid.price)}
+                                </div>
+                                <div className="price-cell ask-price">
+                                    {ask.price > 0 && formatNumber(ask.price)}
+                                </div>
+                                <div className="size-cell ask-cell">
+                                    {ask.size > 0 && (
+                                        <div 
+                                            className="size-bar ask-bar" 
+                                            style={{ width: getBarWidth(ask.size) }}
+                                        >
+                                            {ask.size}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
+
     // 渲染台股指數的組件
     const IndexCard = () => {
         if (!twseIndex) return null;
@@ -264,30 +332,17 @@ export const StockList: React.FC<StockListProps> = ({ stocks, onDelete, twseInde
                         <div className="last-trade">
                             <div>最新:{formatNumber(stock.lastTrade.price)}</div>
                             <div>張數:{stock.lastTrade.size || '-'}</div>
-                            <div>時間:{formatTime(stock.lastTrade.time)}</div>
                         </div>
                     )}
                 </div>
 
                 {/* 五檔價格資訊 */}
-                {(stock.bids?.length > 0 || stock.asks?.length > 0) && (
-                    <div className="order-book">
-                        <div className="asks">
-                            {stock.asks?.slice(0, 5).map((ask, index) => (
-                                <div key={`ask-${index}`} className="order-row">
-                                    <span>{formatNumber(ask.price)}</span>
-                                    <span>{ask.size}</span>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="bids">
-                            {stock.bids?.slice(0, 5).map((bid, index) => (
-                                <div key={`bid-${index}`} className="order-row">
-                                    <span>{formatNumber(bid.price)}</span>
-                                    <span>{bid.size}</span>
-                                </div>
-                            ))}
-                        </div>
+                {(stock.bids && stock.asks && (stock.bids.length > 0 || stock.asks.length > 0)) && (
+                    <div className="order-book-container">
+                        <OrderBookVisual 
+                            bids={stock.bids}
+                            asks={stock.asks}
+                        />
                     </div>
                 )}
 

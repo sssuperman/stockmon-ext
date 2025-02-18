@@ -8,7 +8,7 @@ import { useSessionStore } from './store/sessionStore';
 import { StockPanel } from './stockPanel';
 import { ExtensionContextManager } from './utilities/contextManager';
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
     // Initialize the context manager first
     ExtensionContextManager.initialize(context);
 
@@ -31,6 +31,22 @@ export function activate(context: vscode.ExtensionContext) {
     // const outputChannel = vscode.window.createOutputChannel('Stock Mon WebSocket');
     const outputChannel = vscode.window.createOutputChannel('Stock Mon Extension.ts');
     context.subscriptions.push(outputChannel);
+
+    // 加載保存的會話狀態
+    useSessionStore.getState().loadFromGlobalState(context);
+    
+    // 如果有保存的 authToken，嘗試初始化會話
+    const { authToken, clientUuid } = useSessionStore.getState();
+    if (authToken && clientUuid) {
+        try {
+            await useSessionStore.getState().initSession(clientUuid, authToken);
+        } catch (error) {
+            console.error('Failed to initialize session:', error);
+            // 如果初始化失敗，清除保存的憑證
+            await useSessionStore.getState().setAuthToken(null, context);
+            await useSessionStore.getState().setSessionInfo(null, context);
+        }
+    }
 
     // Initialize WebSocket connection with output channel
     const wsStore = useWebSocketStore.getState();
@@ -101,6 +117,7 @@ export function activate(context: vscode.ExtensionContext) {
     updateCommandTitles();
 
 
+
     // 添加登入命令
     let loginCommand = vscode.commands.registerCommand('stockmon.login', async () => {
         const username = await vscode.window.showInputBox({
@@ -122,14 +139,22 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        const token = await useSessionStore.getState().login(username, password, context);
+        try {
+            const token = await useSessionStore.getState().login(username, password, context);
 
-        if (token) {
-            vscode.window.showInformationMessage(messages.auth.loginSuccess);
-            outputChannel.appendLine(`[${new Date().toLocaleString()}] Login successful for user: ${username}`);
-            // 立即更新 Panel
-        } else {
-            vscode.window.showErrorMessage(messages.auth.loginFailed);
+            if (token) {
+                vscode.window.showInformationMessage(messages.auth.loginSuccess);
+                outputChannel.appendLine(`[${new Date().toLocaleString()}] Login successful for user: ${username}`);
+                
+                // 登入成功後重新連接 WebSocket
+                const wsStore = useWebSocketStore.getState();
+                wsStore.disconnect();
+                wsStore.connect(outputChannel);
+            } else {
+                vscode.window.showErrorMessage(messages.auth.loginFailed);
+            }
+        } catch (error) {
+            vscode.window.showErrorMessage(`Login failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     });
 
@@ -138,11 +163,11 @@ export function activate(context: vscode.ExtensionContext) {
         try {
             await useSessionStore.getState().logout(context);
             vscode.window.showInformationMessage(messages.auth.logoutSuccess);
-            // 立即更新 Panel
-            // if (StockPanel.currentPanel) {
-            //     StockPanel.currentPanel['_update']();
-            // }
-            // updateStockDisplay();
+            
+            // 登出成功後重新連接 WebSocket
+            const wsStore = useWebSocketStore.getState();
+            wsStore.disconnect();
+            wsStore.connect(outputChannel);
         } catch (error) {
             vscode.window.showErrorMessage(messages.auth.logoutFailed);
         }
@@ -368,7 +393,11 @@ export function activate(context: vscode.ExtensionContext) {
                         vscode.commands.executeCommand('stockmon.setCost', symbol);
                     }
                 } catch (error) {
-                    vscode.window.showErrorMessage(`新增股票失敗: ${symbol}`);
+                    const errorMessage = error instanceof Error ? 
+                        `新增股票失敗: ${symbol} - ${error.message}` : 
+                        `新增股票失敗: ${symbol} - 未知錯誤`;
+                    outputChannel.appendLine(`Add stock error: ${errorMessage}`);
+                    vscode.window.showErrorMessage(errorMessage);
                 }
             }
         } catch (error) {
@@ -528,6 +557,11 @@ export function activate(context: vscode.ExtensionContext) {
         outputChannel.appendLine('=== Current Stocks in Store ===');
         outputChannel.appendLine(JSON.stringify(stocks, null, 2));
         outputChannel.show(); // 自動顯示 output channel
+        // List get index
+        const index = useStockDataStore.getState().twseIndex;
+        outputChannel.appendLine('=== Current Index in Store ===');
+        outputChannel.appendLine(JSON.stringify(index, null, 2));
+        outputChannel.show(); // 自動顯示 output channel
     });
 
 
@@ -550,7 +584,6 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('stockmon.switchToDevelopment', async () => {
             await switchEnvironment('development');
-            // 重新初始化 WebSocket 連接
             wsStore.disconnect();
             wsStore.connect(outputChannel);
             vscode.window.showInformationMessage('Switched to Development Environment');
@@ -560,7 +593,6 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('stockmon.switchToProduction', async () => {
             await switchEnvironment('production');
-            // 重新初始化 WebSocket 連接
             wsStore.disconnect();
             wsStore.connect(outputChannel);
             vscode.window.showInformationMessage('Switched to Production Environment');
@@ -573,6 +605,33 @@ export function activate(context: vscode.ExtensionContext) {
             wsStore.disconnect();
         }
     });
+
+    // WebSocket 狀態命令
+    let showWebSocketStateCommand = vscode.commands.registerCommand('stockmon.showWebSocketState', () => {
+        const wsStore = useWebSocketStore.getState();
+        const outputChannel = wsStore.outputChannel;
+
+        if (!outputChannel) {
+            vscode.window.showErrorMessage('Output channel not initialized');
+            return;
+        }
+
+        outputChannel.appendLine('\n=== WebSocket State ===');
+        outputChannel.appendLine(`Connection State: ${wsStore.wsState}`);
+        outputChannel.appendLine(`Reconnect Attempts: ${wsStore.reconnectAttempts}`);
+        outputChannel.appendLine(`Max Reconnect Attempts: ${wsStore.maxReconnectAttempts}`);
+        outputChannel.appendLine(`Reconnect Interval: ${wsStore.reconnectInterval}ms`);
+        outputChannel.appendLine(`Extended Reconnect Interval: ${wsStore.extendedReconnectInterval}ms`);
+        outputChannel.appendLine(`Socket Ready State: ${wsStore.socket?.readyState ?? 'No Socket'}`);
+        outputChannel.appendLine(`Has Reconnect Timeout: ${wsStore.reconnectTimeoutId ? 'Yes' : 'No'}`);
+        outputChannel.appendLine('=== End WebSocket State ===\n');
+
+        // Show the output channel
+        outputChannel.show();
+    });
+
+    // 將命令添加到 subscriptions
+    context.subscriptions.push(showWebSocketStateCommand);
 }
 
 export function deactivate() {

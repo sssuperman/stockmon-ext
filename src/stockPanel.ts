@@ -4,6 +4,7 @@ import { useStockDataStore } from './store/stockDataStore';
 import { getNonce } from './utilities/getNonce';
 import { getUri } from './utilities/getUri';
 import { channel } from 'diagnostics_channel';
+import { StockInventory } from './types';
 
 export class StockPanel {
     private static outputChannel = vscode.window.createOutputChannel('Stock Monitor Pannel');
@@ -37,7 +38,6 @@ export class StockPanel {
                         });
                         break;
                     case 'addStock':
-                        useStockDataStore.getState().addSubscription(message.symbol);
                         vscode.commands.executeCommand('stockmon.addStock', message.symbol);
                         this._panel.webview.postMessage({
                             type: 'updateStocks',
@@ -50,6 +50,31 @@ export class StockPanel {
                             type: 'updateStocks',
                             stocks: useStockDataStore.getState().stocks
                         });
+                        break;
+                    case 'confirmDelete':
+                        const result = await vscode.window.showWarningMessage(
+                            `確定要刪除 ${message.symbol} 嗎？`,
+                            { modal: true },
+                            '確定',
+                            '取消'
+                        );
+                        
+                        if (result === '確定') {
+                            try {
+                                await useStockDataStore.getState().removeSubscription(message.symbol);
+                                this._panel.webview.postMessage({
+                                    type: 'updateStocks',
+                                    stocks: useStockDataStore.getState().stocks
+                                });
+                            } catch (error) {
+                                vscode.window.showErrorMessage(
+                                    `Failed to delete stock: ${error instanceof Error ? error.message : 'Unknown error'}`
+                                );
+                            }
+                        }
+                        break;
+                    case 'setCost':
+                        vscode.commands.executeCommand('stockmon.setCost', message.symbol);
                         break;
                 }
             },
@@ -66,7 +91,14 @@ export class StockPanel {
                 });
             }
         );
-
+        useStockDataStore.subscribe(
+            (state) => {
+                this._panel.webview.postMessage({
+                    type: 'updateTwseIndex',
+                    index: state.twseIndex
+                });
+            }
+        );
         useWebSocketStore.subscribe(
             (state) => {
                 this._panel.webview.postMessage({
@@ -132,6 +164,24 @@ export class StockPanel {
             const disposable = this._disposables.pop();
             if (disposable) {
                 disposable.dispose();
+            }
+        }
+    }
+
+    public updateStocks(stocks: StockInventory[]) {
+        if (this._panel) {
+            this._panel.webview.postMessage({
+                type: 'updateStocks',
+                stocks: stocks
+            });
+
+            // 同時發送指數數據
+            const twseIndex = useStockDataStore.getState().twseIndex;
+            if (twseIndex) {
+                this._panel.webview.postMessage({
+                    type: 'updateTwseIndex',
+                    index: twseIndex
+                });
             }
         }
     }
