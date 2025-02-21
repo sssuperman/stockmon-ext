@@ -13,8 +13,8 @@ const App: React.FC = () => {
     const [twseIndex, setTwseIndex] = useState<StockInventory | null>(null);
 
     useEffect(() => {
-        // Handle messages from extension
-        window.addEventListener('message', event => {
+        // 創建消息處理函數
+        const messageHandler = (event: MessageEvent) => {
             const message = event.data;
             console.log('Received message in App:', message);
             switch (message.type) {
@@ -35,11 +35,19 @@ const App: React.FC = () => {
                     setTwseIndex(message.index);
                     break;
             }
-        });
+        };
 
-        // Request initial data
+        // 添加消息監聽器
+        window.addEventListener('message', messageHandler);
+
+        // 請求初始數據
         vscode.postMessage({ command: 'getStocks' });
-    }, []);
+
+        // 清理函數：移除消息監聽器
+        return () => {
+            window.removeEventListener('message', messageHandler);
+        };
+    }, []); // 空依賴數組，只在組件掛載時執行一次
 
     const handleAddStock = () => {
         vscode.postMessage({ command: 'addStock'});

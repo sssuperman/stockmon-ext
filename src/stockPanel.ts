@@ -11,6 +11,8 @@ export class StockPanel {
     public static currentPanel: StockPanel | undefined;
     private readonly _panel: vscode.WebviewPanel;
     private _disposables: vscode.Disposable[] = [];
+    private unsubscribeStockDataStore: () => void;
+    private unsubscribeWebSocketStore: () => void;
 
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
         this._panel = panel;
@@ -24,14 +26,21 @@ export class StockPanel {
         // Handle messages from the webview
         this._panel.webview.onDidReceiveMessage(
             async message => {
-                StockPanel.outputChannel.appendLine(`Received message: ${JSON.stringify(message)}`);
+                StockPanel.outputChannel.appendLine(`Panel Received message from webview - command: ${message.command}`);
                 switch (message.command) {
                     case 'getStocks':
                         // Send initial data to webview
+                        const stockState = useStockDataStore.getState();
                         this._panel.webview.postMessage({
                             type: 'updateStocks',
-                            stocks: useStockDataStore.getState().stocks
+                            stocks: stockState.stocks
                         });
+                        if (stockState.twseIndex) {
+                            this._panel.webview.postMessage({
+                                type: 'updateTwseIndex',
+                                index: stockState.twseIndex
+                            });
+                        }
                         this._panel.webview.postMessage({
                             type: 'updateWebSocketState',
                             state: useWebSocketStore.getState().wsState
@@ -82,36 +91,47 @@ export class StockPanel {
             this._disposables
         );
 
-        // Subscribe to store changes
-        useStockDataStore.subscribe(
+        // 合併兩個 StockDataStore 訂閱為一個
+        this.unsubscribeStockDataStore = useStockDataStore.subscribe(
             (state) => {
-                this._panel.webview.postMessage({
-                    type: 'updateStocks',
-                    stocks: state.stocks
-                });
+                StockPanel.outputChannel.appendLine(`Panel Received StockDataStore update - stocks count: ${state.stocks.length}`);
+                if (this._panel) {
+                    // 更新股票列表
+                    this._panel.webview.postMessage({
+                        type: 'updateStocks',
+                        stocks: state.stocks
+                    });
+                    
+                    // 更新指數
+                    if (state.twseIndex) {
+                        this._panel.webview.postMessage({
+                            type: 'updateTwseIndex',
+                            index: state.twseIndex
+                        });
+                    }
+                }
             }
         );
-        useStockDataStore.subscribe(
+
+        // WebSocket 狀態訂閱
+        this.unsubscribeWebSocketStore = useWebSocketStore.subscribe(
             (state) => {
-                this._panel.webview.postMessage({
-                    type: 'updateTwseIndex',
-                    index: state.twseIndex
-                });
-            }
-        );
-        useWebSocketStore.subscribe(
-            (state) => {
-                this._panel.webview.postMessage({
-                    type: 'updateWebSocketState',
-                    state: state.wsState
-                });
+                StockPanel.outputChannel.appendLine(`Panel Received WebSocketStore update - state: ${state.wsState}`);
+                if (this._panel) {
+                    this._panel.webview.postMessage({
+                        type: 'updateWebSocketState',
+                        state: state.wsState
+                    });
+                }
             }
         );
     }
 
     public static render(extensionUri: vscode.Uri) {
+        StockPanel.outputChannel.appendLine(`Panel render`);
         if (StockPanel.currentPanel) {
             StockPanel.currentPanel._panel.reveal(vscode.ViewColumn.One);
+            StockPanel.outputChannel.appendLine(`Panel render reveal`);
         } else {
             const panel = vscode.window.createWebviewPanel(
                 'stockmon',
@@ -119,16 +139,17 @@ export class StockPanel {
                 vscode.ViewColumn.One,
                 {
                     enableScripts: true,
+                    retainContextWhenHidden: true,
                     localResourceRoots: [
                         vscode.Uri.joinPath(extensionUri, 'webview-ui/build'),
                         vscode.Uri.joinPath(extensionUri, 'media')
-                    ],
-                    retainContextWhenHidden: true,
+                    ]
                 }
             );
 
             StockPanel.currentPanel = new StockPanel(panel, extensionUri);
         }
+        
     }
 
     private _getWebviewContent(webview: vscode.Webview, extensionUri: vscode.Uri) {
@@ -157,9 +178,11 @@ export class StockPanel {
     }
 
     public dispose() {
+        StockPanel.outputChannel.appendLine(`Panel dispose`);
         StockPanel.currentPanel = undefined;
         this._panel.dispose();
-
+        this.unsubscribeStockDataStore();
+        this.unsubscribeWebSocketStore();
         while (this._disposables.length) {
             const disposable = this._disposables.pop();
             if (disposable) {
@@ -185,4 +208,5 @@ export class StockPanel {
             }
         }
     }
+
 } 

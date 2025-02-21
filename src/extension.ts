@@ -185,61 +185,6 @@ export async function activate(context: vscode.ExtensionContext) {
     });
 
 
-
-    // // 更新狀態欄和浮動視窗
-    // function updateStatusBarAndTooltip() {
-    //     const stockData = stockService.getLastStockData();
-    //     const { totalProfit, totalProfitPercent } = stockService.calculateTotalProfit();
-
-    //     // 更新狀態欄文字
-    //     const totalProfitColor = totalProfit >= 0 ? '$(arrow-up)' : '$(arrow-down)';
-    //     const formattedTotalProfit = Math.abs(totalProfit).toFixed(2);
-    //     const formattedTotalProfitPercent = Math.abs(totalProfitPercent).toFixed(2);
-
-    //     // 更新狀態欄
-    //     statusBarItem.text = `$(graph) ${totalProfitColor}${formattedTotalProfit}(${formattedTotalProfitPercent}%)`;
-
-    //     // 建立 MarkdownString 作為 tooltip
-    //     const tooltipContent = new vscode.MarkdownString();
-    //     tooltipContent.isTrusted = true;
-    //     tooltipContent.supportHtml = true;
-
-    //     tooltipContent.appendMarkdown(`# 股票收益統計 ${new Date().toLocaleDateString('zh-TW')}\n`);
-    //     tooltipContent.appendMarkdown('---\n\n');
-
-    //     stockData.forEach((stock: StockInventory) => {
-    //         const priceColor = stock.change >= 0 ? '↑' : '↓';
-    //         const profitColor = (stock.profit || 0) >= 0 ? '↑' : '↓';
-
-    //         // 基本股價資訊
-    //         tooltipContent.appendMarkdown(`### ${stock.symbol}\n`);
-    //         tooltipContent.appendMarkdown(`**現價:** ${stock.price.toFixed(2)} ${priceColor}${Math.abs(stock.change).toFixed(2)}\n\n`);
-
-    //         // 如果有成本資訊，顯示損益
-    //         if (stock.cost !== undefined) {
-    //             tooltipContent.appendMarkdown(`**成本:** ${stock.cost.cost.toFixed(2)} | **股數:** ${stock.shares}\n\n`);
-    //             tooltipContent.appendMarkdown(`**損益:** ${profitColor}${Math.abs(stock.profit || 0).toFixed(2)}(${Math.abs(stock.profitPercent || 0).toFixed(2)}%)\n`);
-    //         }
-    //         tooltipContent.appendMarkdown('---\n\n');
-    //     });
-
-    //     // 總計資訊
-    //     tooltipContent.appendMarkdown(`### 投資組合總計\n`);
-    //     tooltipContent.appendMarkdown(`**總損益:** ${totalProfitColor === '$(arrow-up)' ? '↑' : '↓'}${formattedTotalProfit}\n\n`);
-    //     tooltipContent.appendMarkdown(`**總報酬率:** ${totalProfitColor === '$(arrow-up)' ? '↑' : '↓'}${formattedTotalProfitPercent}%\n\n`);
-    //     tooltipContent.appendMarkdown('---\n\n');
-    //     tooltipContent.appendMarkdown('*點擊以開啟詳細資訊面板*');
-
-    //     // 設定浮動視窗內容
-    //     statusBarItem.tooltip = tooltipContent;
-    //     statusBarItem.show();
-
-    //     // 更新面板（如果存在）
-    //     if (StockPanel.currentPanel) {
-    //         StockPanel.currentPanel['_update']();
-    //     }
-    // }
-
     // 設定到價提醒命令
     let setPriceAlertCommand = vscode.commands.registerCommand('stockmon.setPriceAlert', async (symbol?: string) => {
         const config = vscode.workspace.getConfiguration('stockmon');

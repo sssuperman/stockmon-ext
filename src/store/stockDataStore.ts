@@ -6,7 +6,6 @@ import { useSessionStore } from './sessionStore';
 import { WebSocketState } from '../types';
 import { urls } from 'src/config';
 import { ExtensionContextManager } from '../utilities/contextManager';
-import { StockPanel } from '../stockPanel';
 
 
 interface StockDataState {
