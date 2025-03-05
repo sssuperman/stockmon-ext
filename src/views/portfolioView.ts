@@ -116,7 +116,7 @@ export class StockItem extends vscode.TreeItem {
         this.command = {
             command: 'stockmon.showStockDetail',
             title: 'Show Stock Detail',
-            arguments: [stock.symbol]
+            arguments: [this.stock.symbol]
         };
     }
 }

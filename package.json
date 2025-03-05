@@ -143,6 +143,12 @@
         "title": "Show Stock Detail",
         "category": "StockMon",
         "icon": "$(info)"
+      },
+      {
+        "command": "stockmon.showStockDetailFromButton",
+        "title": "Show Stock Detail",
+        "category": "StockMon",
+        "icon": "$(info)"
       }
     ],
     "viewsContainers": {
@@ -185,7 +191,7 @@
       ],
       "view/item/context": [
         {
-          "command": "stockmon.showStockDetail",
+          "command": "stockmon.showStockDetailFromButton",
           "when": "view == stockmonPortfolio && viewItem == stock",
           "group": "inline@0"
         },

@@ -62,7 +62,21 @@ export async function activate(context: vscode.ExtensionContext) {
     
     // 註冊顯示股票詳情命令
     context.subscriptions.push(
-        vscode.commands.registerCommand('stockmon.showStockDetail', async (symbol: string) => {
+        vscode.commands.registerCommand('stockmon.showStockDetail', async (symbolOrStock: string | any) => {
+            // 處理參數可能是對象的情況
+            let symbol: string;
+            
+            if (typeof symbolOrStock === 'string') {
+                symbol = symbolOrStock;
+            } else if (symbolOrStock && typeof symbolOrStock === 'object' && symbolOrStock.symbol) {
+                // 如果傳入的是股票對象，提取 symbol 屬性
+                symbol = symbolOrStock.symbol;
+            } else {
+                logger.logError(LogCategory.PORTFOLIO, `Invalid argument for showStockDetail: ${JSON.stringify(symbolOrStock)}`);
+                vscode.window.showErrorMessage('Invalid stock information');
+                return;
+            }
+            
             logger.info(LogCategory.PORTFOLIO, `Showing details for stock: ${symbol}`);
             
             try {
@@ -91,6 +105,49 @@ export async function activate(context: vscode.ExtensionContext) {
             } catch (error) {
                 logger.logError(LogCategory.PORTFOLIO, error, `Error showing stock detail for ${symbol}`);
                 vscode.window.showErrorMessage(`Error showing stock details: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+        })
+    );
+    
+    // 註冊從按鈕顯示股票詳情命令
+    context.subscriptions.push(
+        vscode.commands.registerCommand('stockmon.showStockDetailFromButton', async (item: any) => {
+            // 從 TreeItem 中獲取股票信息
+            if (!item || !item.stock || !item.stock.symbol) {
+                logger.warning(LogCategory.PORTFOLIO, `Invalid item for showStockDetailFromButton: ${JSON.stringify(item)}`);
+                vscode.window.showWarningMessage('Cannot show stock details: Invalid stock item');
+                return;
+            }
+            
+            const symbol = item.stock.symbol;
+            logger.info(LogCategory.PORTFOLIO, `Showing details for stock from button: ${symbol}`);
+            
+            try {
+                const stockState = useStockDataStore.getState();
+                const stock = stockState.stocks.find(s => s.symbol === symbol);
+                
+                if (!stock) {
+                    logger.warning(LogCategory.PORTFOLIO, `Stock not found: ${symbol}`);
+                    vscode.window.showWarningMessage(`Stock not found: ${symbol}`);
+                    return;
+                }
+                
+                // 使用 StockPanel 顯示股票詳情
+                if (!StockPanel.currentPanel) {
+                    // 如果面板不存在，創建一個新的面板
+                    StockPanel.createOrShow(context.extensionUri);
+                    
+                    // 等待面板初始化完成
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                
+                // 發送消息到 webview 顯示股票詳情
+                StockPanel.currentPanel?.showStockDetail(symbol);
+                
+                logger.debug(LogCategory.PORTFOLIO, `Stock detail request sent to panel for ${symbol}`);
+            } catch (error) {
+                logger.logError(LogCategory.PORTFOLIO, error, `Error showing stock detail for ${symbol}`);
+                vscode.window.showErrorMessage(`Error showing stock details: ${error}`);
             }
         })
     );

@@ -70,7 +70,7 @@ This extension provides the following settings:
 
 - Report issues on [GitHub](https://github.com/sssuperman/stock-monitor/issues)
   在 GitHub 上回報問題
-- Send feedback via [email](mailto:your.email@example.com)
+- Send feedback via [email](mailto:sssuperman@gmail.com)
   透過 email 發送回饋
 
 ## Release Notes 版本資訊
@@ -84,6 +84,9 @@ This extension provides the following settings:
   移除未使用的配置選項，提高清晰度
 - Enhanced configuration checking command with detailed proxy status
   增強配置檢查命令，顯示詳細的代理狀態
+- Add sidebar for portfolio management
+  左側新增SideBar進行持股管理
+  
 
 ### 0.1.7
 - Added WebSocket support for real-time updates
