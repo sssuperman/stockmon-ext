@@ -76,3 +76,29 @@ class VSCodeAPIWrapper {
 
 // Exports class singleton to prevent multiple invocations of acquireVsCodeApi.
 export const vscode = new VSCodeAPIWrapper();
+
+// Safe access to VS Code API (already initialized in the HTML)
+export const vscodeSafe = (window as any).vscode;
+
+// Register a message handler that will also process pending messages
+export function registerMessageHandler(handler: (message: any) => void): void {
+    // Store the handler globally
+    (window as any).handleVsCodeMessage = handler;
+    
+    // Process any pending messages
+    const pendingMessages = (window as any).vscodePendingMessages || [];
+    if (pendingMessages.length > 0) {
+        console.log(`Processing ${pendingMessages.length} pending messages`);
+        pendingMessages.forEach((message: any) => handler(message));
+        (window as any).vscodePendingMessages = [];
+    }
+}
+
+// Send a message to the extension
+export function postMessage(message: any): void {
+    if (vscodeSafe) {
+        vscodeSafe.postMessage(message);
+    } else {
+        console.error('VS Code API not available');
+    }
+}

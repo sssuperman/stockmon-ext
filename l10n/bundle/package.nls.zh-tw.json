@@ -10,7 +10,5 @@
     "stockmon.manualCheckPriceAlerts": "手動檢查到價提醒",
     "stockmon.login": "登入",
     "stockmon.logout": "登出",
-    "stockmon.showPanel": "顯示股票監控面板",
-    "stockmon.symbols.description": "要監控的股票代號列表",
-    "stockmon.refreshInterval.description": "更新間隔(分鐘)"
+    "stockmon.showPanel": "顯示股票監控面板"
 } 

@@ -44,6 +44,11 @@ export interface LocaleMessages {
         invalidShares: string;
         pleaseInputPrice: string;
         pleaseInputShares: string;
+        selectStock: string;
+        error: string;
+        generalError: string;
+        setCostError: string;
+        selectStockToSetCost: string;
     };
     panel: {
         title: string;
@@ -92,10 +97,9 @@ export interface LocaleMessages {
         showPanel: string;
         clearAllSubscriptions: string;
         showSessionInfo: string;
+        syncUserStocks: string;
     };
     config: {
-        symbolsDescription: string;
-        refreshIntervalDescription: string;
     };
     subscription: {
         clearConfirmation: string;
@@ -154,7 +158,12 @@ const zhTW: LocaleMessages = {
         invalidPrice: '請輸入有效的價格',
         invalidShares: '請輸入有效的股數',
         pleaseInputPrice: '請輸入成本價格',
-        pleaseInputShares: '請輸入股數'
+        pleaseInputShares: '請輸入股數',
+        selectStock: '選擇股票',
+        error: '{0} 操作失敗：{1}',
+        generalError: '操作發生錯誤：{0}',
+        setCostError: '設定 {0} 成本時發生錯誤：{1}',
+        selectStockToSetCost: '選擇要設定成本的股票'
     },
     panel: {
         title: 'Stock Monitor',
@@ -202,11 +211,10 @@ const zhTW: LocaleMessages = {
         logout: '登出',
         showPanel: '顯示股票監控面板',
         clearAllSubscriptions: '清除所有訂閱',
-        showSessionInfo: '顯示會話資訊'
+        showSessionInfo: '顯示會話資訊',
+        syncUserStocks: '從伺服器同步用戶股票',
     },
     config: {
-        symbolsDescription: '要監控的股票代號列表',
-        refreshIntervalDescription: '更新間隔(分鐘)'
     },
     subscription: {
         clearConfirmation: '確定要清除所有訂閱嗎？這將會移除所有追蹤的股票。',
@@ -265,7 +273,12 @@ const enUS: LocaleMessages = {
         invalidPrice: 'Please enter a valid price',
         invalidShares: 'Please enter a valid number of shares',
         pleaseInputPrice: 'Please enter cost price',
-        pleaseInputShares: 'Please enter number of shares'
+        pleaseInputShares: 'Please enter number of shares',
+        selectStock: 'Select Stock',
+        error: '{0} operation failed: {1}',
+        generalError: 'Operation error: {0}',
+        setCostError: 'Error setting cost for {0}: {1}',
+        selectStockToSetCost: 'Select stock to set cost'
     },
     panel: {
         title: 'Stock Monitor',
@@ -313,11 +326,10 @@ const enUS: LocaleMessages = {
         logout: 'Logout',
         showPanel: 'Show Stock Monitor Panel',
         clearAllSubscriptions: 'Clear All Subscriptions',
-        showSessionInfo: 'Show Session Info'
+        showSessionInfo: 'Show Session Info',
+        syncUserStocks: 'Sync User Stocks from Server',
     },
     config: {
-        symbolsDescription: 'List of stock symbols to monitor',
-        refreshIntervalDescription: 'Refresh interval (minutes)'
     },
     subscription: {
         clearConfirmation: 'Are you sure you want to clear all subscriptions? This will remove all tracked stocks.',

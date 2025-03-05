@@ -10,7 +10,5 @@
     "stockmon.manualCheckPriceAlerts": "Manual Check Price Alerts",
     "stockmon.login": "Login",
     "stockmon.logout": "Logout",
-    "stockmon.showPanel": "Show Stock Monitor Panel",
-    "stockmon.symbols.description": "List of stock symbols to monitor",
-    "stockmon.refreshInterval.description": "Refresh interval (minutes)"
+    "stockmon.showPanel": "Show Stock Monitor Panel"
 } 

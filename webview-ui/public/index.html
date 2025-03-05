@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Stock Monitor</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vscode-codicons@0.0.17/dist/codicon.css">
+    <script>
+      // DEVELOPMENT ONLY:
+      // Provide a mock VS Code API for testing in browser environment
+      if (!window.acquireVsCodeApi) {
+        let state = {};
+        window.acquireVsCodeApi = function() {
+          console.warn('Using mock VS Code API for development');
+          return {
+            postMessage: (msg) => console.log('Mock postMessage:', msg),
+            getState: () => state,
+            setState: (newState) => { state = { ...state, ...newState }; }
+          };
+        };
+        window.vscode = window.acquireVsCodeApi();
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html> 

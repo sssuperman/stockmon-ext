@@ -2,7 +2,7 @@
   "name": "stockmon",
   "displayName": "stock-monitor",
   "description": "A stock monitoring and analysis platform. Stock Mate for Programmer",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "publisher": "stockmon",
   "license": "MIT",
   "icon": "./resources/icon.png",
@@ -44,17 +44,25 @@
       {
         "command": "stockmon.deleteStock",
         "title": "Delete Stock Symbol",
-        "category": "StockMon"
+        "category": "StockMon",
+        "icon": "$(trash)"
       },
       {
         "command": "stockmon.refresh",
-        "title": "Refresh Stock Price",
+        "title": "Refresh Stock Data",
         "category": "StockMon"
+      },
+      {
+        "command": "stockmon.refreshPortfolio",
+        "title": "Refresh Portfolio",
+        "category": "StockMon",
+        "icon": "$(refresh)"
       },
       {
         "command": "stockmon.setCost",
         "title": "Set Stock Cost",
-        "category": "StockMon"
+        "category": "StockMon",
+        "icon": "$(edit)"
       },
       {
         "command": "stockmon.setPriceAlert",
@@ -92,12 +100,14 @@
         "category": "StockMon"
       },
       {
-        "command": "stockmon.switchToDevelopment",
-        "title": "Switch to Development Environment"
+        "command": "stockmon.enableProxy",
+        "title": "Enable Proxy Server",
+        "category": "StockMon"
       },
       {
-        "command": "stockmon.switchToProduction",
-        "title": "Switch to Production Environment"
+        "command": "stockmon.disableProxy",
+        "title": "Disable Proxy Server",
+        "category": "StockMon"
       },
       {
         "command": "stockmon.listStock",
@@ -112,58 +122,113 @@
         "command": "stockmon.showWebSocketState",
         "title": "Show WebSocket State",
         "category": "StockMon"
+      },
+      {
+        "command": "stockmon.checkConfig",
+        "title": "Check Current Configuration",
+        "category": "StockMon"
+      },
+      {
+        "command": "stockmon.processSyncQueue",
+        "title": "Process Sync Queue",
+        "category": "StockMon"
+      },
+      {
+        "command": "stockmon.setLogLevel",
+        "title": "Set Log Level",
+        "category": "StockMon"
+      },
+      {
+        "command": "stockmon.showStockDetail",
+        "title": "Show Stock Detail",
+        "category": "StockMon",
+        "icon": "$(info)"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "stockmon-sidebar",
+          "title": "StockMon",
+          "icon": "resources/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "stockmon-sidebar": [
+        {
+          "id": "stockmonPortfolio",
+          "name": "Portfolio",
+          "icon": "resources/icon.png",
+          "contextualTitle": "Stock Portfolio"
+        },
+        {
+          "id": "stockmon.watchlist",
+          "name": "Watchlist",
+          "icon": "resources/icon.png",
+          "contextualTitle": "Stock Watchlist"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "stockmon.refreshPortfolio",
+          "when": "view == stockmonPortfolio",
+          "group": "navigation"
+        },
+        {
+          "command": "stockmon.addStock",
+          "when": "view == stockmonPortfolio",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "stockmon.showStockDetail",
+          "when": "view == stockmonPortfolio && viewItem == stock",
+          "group": "inline@0"
+        },
+        {
+          "command": "stockmon.setCost",
+          "when": "view == stockmonPortfolio && viewItem == stock",
+          "group": "inline@1"
+        },
+        {
+          "command": "stockmon.deleteStock",
+          "when": "view == stockmonPortfolio && viewItem == stock",
+          "group": "inline@2"
+        }
+      ]
+    },
     "configuration": {
-      "title": "Stock Monitor",
+      "title": "StockMon",
       "properties": {
-        "stockmon.symbols": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [],
-          "description": "%stockmon.symbols.description%"
+        "stockmon.useProxy": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否使用代理伺服器連接"
         },
-        "stockmon.refreshInterval": {
-          "type": "number",
-          "default": 5,
-          "description": "%stockmon.refreshInterval.description%"
-        },
-        "stockmon.environment": {
+        "stockmon.proxyApiBaseUrl": {
           "type": "string",
-          "enum": [
-            "development",
-            "production"
-          ],
-          "default": "production",
-          "description": "選擇運行環境"
+          "default": "http://127.0.0.1/api",
+          "description": "代理伺服器的 API 基礎 URL"
         },
-        "stockmon.developmentConfig": {
-          "type": "object",
-          "properties": {
-            "apiBaseUrl": {
-              "type": "string",
-              "default": "http://127.0.0.1/api",
-              "description": "開發環境的 API 基礎 URL"
-            },
-            "wsHost": {
-              "type": "string",
-              "default": "127.0.0.1",
-              "description": "開發環境的 WebSocket host"
-            },
-            "wsPort": {
-              "type": "number",
-              "default": 80,
-              "description": "開發環境的 WebSocket port"
-            }
-          },
-          "default": {
-            "apiBaseUrl": "http://127.0.0.1/api",
-            "wsHost": "127.0.0.1",
-            "wsPort": 80
-          },
-          "description": "開發環境的連線設定"
+        "stockmon.proxyWsHost": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "代理伺服器的 WebSocket host"
+        },
+        "stockmon.proxyWsPort": {
+          "type": "number",
+          "default": 80,
+          "description": "代理伺服器的 WebSocket port"
+        },
+        "stockmon.logLevel": {
+          "type": "string",
+          "enum": ["DEBUG", "INFO", "WARNING", "ERROR"],
+          "default": "INFO",
+          "description": "設置 StockMon 擴展的日誌級別 (DEBUG 顯示所有日誌，INFO 顯示一般信息，WARNING 只顯示警告和錯誤，ERROR 只顯示錯誤)"
         }
       }
     }

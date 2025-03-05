@@ -62,6 +62,12 @@ export interface StockInventory {
     lastTrade?: TradeInfo;
     lastTrial?: TradeInfo;
     isClose?: boolean;
+    
+    // 內外盤和量縮相關屬性
+    inVolume?: number;      // 內盤成交量
+    outVolume?: number;     // 外盤成交量
+    neutralVolume?: number; // 中性盤成交量
+    previousVolume?: number; // 前一交易日成交量
 }
 
 export interface StockSearchResult {

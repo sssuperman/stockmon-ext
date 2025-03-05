@@ -3,20 +3,22 @@ import { VSCodeButton, VSCodeDivider } from '@vscode/webview-ui-toolkit/react';
 import { StockInventory } from '../../../src/types';
 import { vscode } from '../utilities/vscode';
 import './StockList.css';
+import { BsGrid3X3GapFill, BsTable, BsPlusCircle, BsThreeDotsVertical } from 'react-icons/bs';
 
 interface StockListProps {
     stocks: StockInventory[];
     onDelete: (symbol: string) => void;
     twseIndex: StockInventory | null;
+    onSelectStock: (stock: StockInventory) => void;
 }
 
-export const StockList: React.FC<StockListProps> = ({ stocks, onDelete, twseIndex }) => {
+export const StockList: React.FC<StockListProps> = ({ stocks, onDelete, twseIndex, onSelectStock }) => {
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
     const prevStocksRef = useRef(stocks);
     const prevIndexRef = useRef(twseIndex);
     const [updatedStocks, setUpdatedStocks] = useState<Set<string>>(new Set());
     const [updatedIndex, setUpdatedIndex] = useState<boolean>(false);
-
+    const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
 
     useEffect(() => {
         // 檢查是否有新的或更新的股票
@@ -78,12 +80,56 @@ export const StockList: React.FC<StockListProps> = ({ stocks, onDelete, twseInde
         setActiveMenu(null);
     };
 
-    const formatNumber = (num: number) => {
+    const handleStockClick = (stock: StockInventory) => {
+        console.log('Stock clicked:', stock);
+        onSelectStock(stock);
+    };
+
+    const formatNumber = (num: any): string => {
+        if (typeof num !== 'number' || isNaN(num)) {
+            // 嘗試將字符串轉換為數字
+            if (typeof num === 'string') {
+                const parsedNum = parseFloat(num);
+                if (!isNaN(parsedNum)) {
+                    return parsedNum.toFixed(2);
+                }
+            }
+            console.warn(`formatNumber received non-number value: ${num} (${typeof num})`);
+            return '0.00';
+        }
         return num.toFixed(2);
     };
 
-    const formatPercent = (num: number) => {
+    const formatPercent = (num: any): string => {
+        if (typeof num !== 'number' || isNaN(num)) {
+            console.warn(`formatPercent received non-number value: ${num} (${typeof num})`);
+            return '+0.00%';
+        }
         return `${num >= 0 ? '+' : ''}${num.toFixed(2)}%`;
+    };
+
+    // 添加 formatVolume 函數
+    const formatVolume = (volume: any): string => {
+        if (typeof volume !== 'number' || isNaN(volume)) {
+            console.warn(`formatVolume received non-number value: ${volume} (${typeof volume})`);
+            return '0';
+        }
+        
+        if (volume >= 1000000) {
+            return `${(volume / 1000000).toFixed(2)}M`;
+        }
+        if (volume >= 1000) {
+            return `${(volume / 1000).toFixed(0)}K`;
+        }
+        return volume.toString();
+    };
+
+    // 添加 formatTime 函數
+    const formatTime = (time: string | number): string => {
+        if (typeof time === 'number') {
+            return new Date(time * 1000).toLocaleTimeString();
+        }
+        return String(time);
     };
 
     // 添加 K 棒圖元件
@@ -133,143 +179,67 @@ export const StockList: React.FC<StockListProps> = ({ stocks, onDelete, twseInde
         );
     };
 
-    // 新增顯示格式化函數
-    const formatVolume = (volume: number) => {
-        if (volume >= 1000000) {
-            return `${(volume / 1000000).toFixed(2)}M`;
-        }
-        if (volume >= 1000) {
-            return `${(volume / 1000).toFixed(0)}K`;
-        }
-        return volume.toString();
-    };
-
-    const formatTime = (time: string | number) => {
-        if (typeof time === 'number') {
-            return new Date(time * 1000).toLocaleTimeString();
-        }
-        return time;
-    };
-
-    // 在 KLineBar 組件後添加新的 OrderBookVisual 組件
-    const OrderBookVisual: React.FC<{
-        bids: Array<{ price: number; size: number }>;
-        asks: Array<{ price: number; size: number }>;
-    }> = ({ bids, asks }) => {
-        // 分別計算買賣方的最大量，確保兩邊的比例一致
-        const maxBidSize = Math.max(...bids.map(b => b.size), 1);
-        const maxAskSize = Math.max(...asks.map(a => a.size), 1);
-        const maxSize = Math.max(maxBidSize, maxAskSize);
-
-        const getBarWidth = (size: number) => {
-            // 降低最大寬度為70%，並設定最小寬度
-            const percentage = (size / maxSize) * 70;
-            // 如果數量很小，返回較小的寬度
-            if (percentage < 15) {
-                return `${Math.max(percentage, 12)}%`;
-            }
-            return `${percentage}%`;
-        };
-
-        return (
-            <div className="order-book-visual">
-                <div className="order-book-header">
-                    <div className="header-cell">委買量</div>
-                    <div className="header-cell">買價</div>
-                    <div className="header-cell">賣價</div>
-                    <div className="header-cell">委賣量</div>
-                </div>
-                <div className="order-book-rows">
-                    {Array.from({ length: 5 }).map((_, index) => {
-                        const bid = bids[index] || { price: 0, size: 0 };
-                        const ask = asks[index] || { price: 0, size: 0 };
-                        return (
-                            <div key={index} className="order-row">
-                                <div className="size-cell bid-cell">
-                                    {bid.size > 0 && (
-                                        <div 
-                                            className="size-bar bid-bar" 
-                                            style={{ width: getBarWidth(bid.size) }}
-                                        >
-                                            {bid.size}
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="price-cell bid-price">
-                                    {bid.price > 0 && formatNumber(bid.price)}
-                                </div>
-                                <div className="price-cell ask-price">
-                                    {ask.price > 0 && formatNumber(ask.price)}
-                                </div>
-                                <div className="size-cell ask-cell">
-                                    {ask.size > 0 && (
-                                        <div 
-                                            className="size-bar ask-bar" 
-                                            style={{ width: getBarWidth(ask.size) }}
-                                        >
-                                            {ask.size}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        );
-    };
-
     // 渲染台股指數的組件
     const IndexCard = () => {
-        if (!twseIndex) return null;
+        if (!twseIndex) {
+            return null;
+        }
+
+        const price = typeof twseIndex.price === 'number' ? twseIndex.price : 0;
+        const change = typeof twseIndex.change === 'number' ? twseIndex.change : 0;
+        const changePercent = typeof twseIndex.changePercent === 'number' ? twseIndex.changePercent : 0;
+        const volume = typeof twseIndex.volume === 'number' ? twseIndex.volume : 0;
+        const open = typeof twseIndex.open === 'number' ? twseIndex.open : price;
+        const high = typeof twseIndex.high === 'number' ? twseIndex.high : price;
+        const low = typeof twseIndex.low === 'number' ? twseIndex.low : price;
 
         return (
-            <div className={`index-card ${updatedIndex ? 'flash-update' : ''}`}>
+            <div 
+                className={`index-card ${updatedIndex ? 'flash-update' : ''}`}
+                onClick={() => handleStockClick(twseIndex)}
+                style={{ cursor: 'pointer' }}
+            >
                 <div className="stock-header">
                     <div className="stock-info">
                         <div className="stock-title-row">
                             <span className="stock-name">{twseIndex.name}</span>
-                            <span className="stock-volume">
-                                成交量: {(twseIndex.volume / 1000).toFixed(0)}K
-                            </span>
+                            <span className="stock-symbol">{twseIndex.symbol}</span>
                         </div>
-                        <div className="stock-price-row">
-                            <div className="stock-chart-container">
-                                {twseIndex.open !== undefined && (
-                                    <KLineBar
-                                        open={twseIndex.open}
-                                        high={twseIndex.high}
-                                        low={twseIndex.low}
-                                        close={twseIndex.price}
-                                        width={15}
-                                        height={18}
-                                    />
-                                )}
+                    </div>
+                    <div className="stock-price-row">
+                        <div className="stock-chart-container">
+                            {open !== undefined && (
+                                <KLineBar
+                                    open={open}
+                                    high={high}
+                                    low={low}
+                                    close={price}
+                                    width={15}
+                                    height={18}
+                                />
+                            )}
+                        </div>
+                        <div className="price-info">
+                            <div className="price-main">
+                                <div className="stock-price">{formatNumber(price)}</div>
                             </div>
-                            <div className="price-info">
-                                <div className="price-main">
-                                    <div className="stock-price">{formatNumber(twseIndex.price)}</div>
+                            <div className="price-change">
+                                <div className={`stock-change ${change >= 0 ? 'profit-up' : 'profit-down'}`}>
+                                    <span className="change-arrow">
+                                        {change >= 0 ? '▲' : '▼'}
+                                    </span>
+                                    <span className="change-value">
+                                        {formatNumber(Math.abs(change))}
+                                    </span>
                                 </div>
-                                <div className="price-change">
-                                    <div className={`stock-change ${twseIndex.change >= 0 ? 'profit-up' : 'profit-down'}`}>
-                                        <span className="change-arrow">
-                                            {twseIndex.change >= 0 ? '▲' : '▼'}
-                                        </span>
-                                        <span className="change-value">
-                                            {formatNumber(Math.abs(twseIndex.change))}
-                                        </span>
-                                    </div>
-                                    <div className={`change-percent ${twseIndex.change >= 0 ? 'profit-up' : 'profit-down'}`}>
-                                        {formatPercent(twseIndex.changePercent)}
-                                    </div>
+                                <div className={`change-percent ${change >= 0 ? 'profit-up' : 'profit-down'}`}>
+                                    {formatPercent(changePercent)}
                                 </div>
                             </div>
-                            <div className="price-details">
-                                <div>開:{formatNumber(twseIndex.open)}</div>
-                                <div>高:{formatNumber(twseIndex.high)}</div>
-                                <div>低:{formatNumber(twseIndex.low)}</div>
-                            </div>
                         </div>
+                    </div>
+                    <div className="stock-volume">
+                        成交量: {formatVolume(volume)}
                     </div>
                 </div>
             </div>
@@ -277,9 +247,43 @@ export const StockList: React.FC<StockListProps> = ({ stocks, onDelete, twseInde
     };
 
     // 更新股票卡片內容
-    const StockCard: React.FC<{ stock: StockInventory }> = ({ stock }) => {
+    const StockCard = ({ stock }: { stock: StockInventory }) => {
+        const isUpdated = updatedStocks.has(stock.symbol);
+        
+        const price = typeof stock.price === 'number' ? stock.price : 0;
+        const lastPrice = typeof stock.lastPrice === 'number' ? stock.lastPrice : price;
+        const change = typeof stock.change === 'number' ? stock.change : 0;
+        const changePercent = typeof stock.changePercent === 'number' ? stock.changePercent : 0;
+        const open = typeof stock.open === 'number' ? stock.open : price;
+        const high = typeof stock.high === 'number' ? stock.high : price;
+        const low = typeof stock.low === 'number' ? stock.low : price;
+        const volume = typeof stock.volume === 'number' ? stock.volume : 0;
+        const avgPrice = typeof stock.avgPrice === 'number' ? stock.avgPrice : price;
+
+        // 檢查成本數據
+        console.log(`Stock ${stock.symbol} cost data:`, stock.cost);
+        
+        // 處理 averageCost 可能是字符串的情況
+        let averageCost = 0;
+        if (stock.cost) {
+            if (typeof stock.cost.averageCost === 'number') {
+                averageCost = stock.cost.averageCost;
+            } else if (typeof stock.cost.averageCost === 'string') {
+                averageCost = parseFloat(stock.cost.averageCost);
+                if (isNaN(averageCost)) averageCost = 0;
+            }
+        }
+        
+        const quantity = stock.cost && typeof stock.cost.quantity === 'number' ? stock.cost.quantity : 0;
+        const profit = typeof stock.profit === 'number' ? stock.profit : 0;
+        const profitPercent = typeof stock.profitPercent === 'number' ? stock.profitPercent : 0;
+
         return (
-            <div className={`stock-card ${updatedStocks.has(stock.symbol) ? 'flash-update' : ''}`}>
+            <div 
+                className={`stock-card ${isUpdated ? 'flash-update' : ''}`} 
+                onClick={() => handleStockClick(stock)}
+                style={{ cursor: 'pointer' }}
+            >
                 <div className="stock-header">
                     <div className="stock-info">
                         <div className="stock-title-row">
@@ -289,99 +293,67 @@ export const StockList: React.FC<StockListProps> = ({ stocks, onDelete, twseInde
                         <div className="stock-price-row">
                             <div className="stock-chart-container">
                                 <KLineBar
-                                    open={stock.open}
-                                    high={stock.high}
-                                    low={stock.low}
-                                    close={stock.lastPrice || stock.price}
+                                    open={open}
+                                    high={high}
+                                    low={low}
+                                    close={lastPrice || price}
                                     width={15}
                                     height={18}
                                 />
                             </div>
                             <div className="price-info">
                                 <div className="price-main">
-                                    <div className="stock-price">{formatNumber(stock.lastPrice || stock.price)}</div>
+                                    <div className="stock-price">{formatNumber(lastPrice || price)}</div>
                                 </div>
                                 <div className="price-change">
-                                    <div className={`stock-change ${stock.change >= 0 ? 'profit-up' : 'profit-down'}`}>
+                                    <div className={`stock-change ${change >= 0 ? 'profit-up' : 'profit-down'}`}>
                                         <span className="change-arrow">
-                                            {stock.change >= 0 ? '▲' : '▼'}
+                                            {change >= 0 ? '▲' : '▼'}
                                         </span>
-                                        <span className="change-value">{formatNumber(Math.abs(stock.change))}</span>
+                                        <span className="change-value">
+                                            {formatNumber(Math.abs(change))}
+                                        </span>
                                     </div>
-                                    <div className={`change-percent ${stock.change >= 0 ? 'profit-up' : 'profit-down'}`}>
-                                        {formatPercent(stock.changePercent)}
+                                    <div className={`change-percent ${change >= 0 ? 'profit-up' : 'profit-down'}`}>
+                                        {formatPercent(changePercent)}
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-
-                {/* 新增交易資訊區域 */}
-                <div className="trading-info">
-                    <div className="price-details">
-                        <div>開:{formatNumber(stock.open)}</div>
-                        <div>高:{formatNumber(stock.high)}</div>
-                        <div>低:{formatNumber(stock.low)}</div>
-                    </div>
-                    <div className="volume-info">
-                        <div>量:{formatVolume(stock.volume)}</div>
-                        <div>均價:{formatNumber(stock.avgPrice)}</div>
-                    </div>
-                    {stock.lastTrade && (
-                        <div className="last-trade">
-                            <div>最新:{formatNumber(stock.lastTrade.price)}</div>
-                            <div>張數:{stock.lastTrade.size || '-'}</div>
-                        </div>
-                    )}
-                </div>
-
-                {/* 五檔價格資訊 */}
-                {(stock.bids && stock.asks && (stock.bids.length > 0 || stock.asks.length > 0)) && (
-                    <div className="order-book-container">
-                        <OrderBookVisual 
-                            bids={stock.bids}
-                            asks={stock.asks}
-                        />
-                    </div>
-                )}
-
-                {/* 成本和獲利資訊 */}
-                {stock.cost && (
-                    <div className="stock-details">
-                        <div className="cost-info">
-                            <div>成本: {formatNumber(stock.cost.averageCost)}</div>
-                            <div>股數: {stock.cost.quantity}</div>
-                        </div>
-                        {stock.profit !== undefined && stock.profitPercent !== undefined && (
-                            <div className={`profit-info ${stock.profit >= 0 ? 'profit-up' : 'profit-down'}`}>
-                                <div>損益: {formatNumber(stock.profit)}</div>
-                                <div>({formatPercent(stock.profitPercent)})</div>
-                            </div>
-                        )}
-                    </div>
-                )}
 
                 <div className="stock-actions">
                     <div className="menu-container">
-                        <VSCodeButton
-                            appearance="icon"
-                            onClick={() => handleMenuClick(stock.symbol)}
-                            aria-label="More options"
+                        <button 
+                            className="menu-button" 
+                            onClick={(e) => {
+                                e.stopPropagation(); // 阻止事件冒泡
+                                handleMenuClick(stock.symbol);
+                            }}
                         >
-                            ⋮
-                        </VSCodeButton>
+                            <BsThreeDotsVertical />
+                        </button>
                         {activeMenu === stock.symbol && (
                             <div className="menu-dropdown">
-                                <VSCodeButton onClick={() => handleSetCost(stock.symbol)}>
-                                    Set Cost
-                                </VSCodeButton>
-                                <VSCodeButton onClick={() => handleSetAlert(stock.symbol)}>
-                                    Set Alert
-                                </VSCodeButton>
-                                <VSCodeButton onClick={() => handleDelete(stock.symbol)}>
-                                    Delete
-                                </VSCodeButton>
+                                <button 
+                                    className="menu-item" 
+                                    onClick={(e) => {
+                                        e.stopPropagation(); // 阻止事件冒泡
+                                        handleSetAlert(stock.symbol);
+                                    }}
+                                >
+                                    設定價格提醒
+                                </button>
+                                <button 
+                                    className="menu-item delete" 
+                                    onClick={(e) => {
+                                        e.stopPropagation(); // 阻止事件冒泡
+                                        handleDelete(stock.symbol);
+                                    }}
+                                >
+                                    刪除
+                                </button>
                             </div>
                         )}
                     </div>
@@ -392,15 +364,118 @@ export const StockList: React.FC<StockListProps> = ({ stocks, onDelete, twseInde
 
     return (
         <div className="stock-container">
+            <div className="view-mode-toggle">
+                <button 
+                    className={`view-mode-button ${viewMode === 'card' ? 'active' : ''}`}
+                    onClick={() => setViewMode('card')}
+                    title="卡片視圖"
+                >
+                    <BsGrid3X3GapFill />
+                </button>
+                <button 
+                    className={`view-mode-button ${viewMode === 'table' ? 'active' : ''}`}
+                    onClick={() => setViewMode('table')}
+                    title="表格視圖"
+                >
+                    <BsTable />
+                </button>
+                <button 
+                    className="view-mode-button add-stock"
+                    onClick={() => vscode.postMessage({ command: 'addStock' })}
+                    title="添加股票"
+                >
+                    <BsPlusCircle />
+                </button>
+            </div>
+            
             <div className="index-section">
                 <IndexCard />
             </div>
             <VSCodeDivider />
-            <div className="stock-grid">
-                {stocks.map((stock) => (
-                    <StockCard key={stock.symbol} stock={stock} />
-                ))}
-            </div>
+
+            {viewMode === 'card' ? (
+                <div className="stock-grid">
+                    {stocks.map((stock) => (
+                        <StockCard key={stock.symbol} stock={stock} />
+                    ))}
+                </div>
+            ) : (
+                <table className="stock-table">
+                    <thead>
+                        <tr>
+                            <th>庫存股</th>
+                            <th>今日損益</th>
+                            <th>總損益</th>
+                            <th>股數</th>
+                            <th className="price-header">
+                                <div className="price-title">股價</div>
+                                <div className="change-title">漲跌幅</div>
+                            </th>
+                            <th>成本</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {stocks.map((stock) => {
+                            const price = typeof stock.price === 'number' ? stock.price : 0;
+                            const change = typeof stock.change === 'number' ? stock.change : 0;
+                            const changePercent = typeof stock.changePercent === 'number' ? stock.changePercent : 0;
+                            
+                            // 檢查成本數據
+                            console.log(`Table row - Stock ${stock.symbol} cost data:`, stock.cost);
+                            
+                            // 處理 averageCost 可能是字符串的情況
+                            let averageCost = 0;
+                            if (stock.cost) {
+                                if (typeof stock.cost.averageCost === 'number') {
+                                    averageCost = stock.cost.averageCost;
+                                } else if (typeof stock.cost.averageCost === 'string') {
+                                    averageCost = parseFloat(stock.cost.averageCost);
+                                    if (isNaN(averageCost)) averageCost = 0;
+                                }
+                            }
+                            
+                            const quantity = stock.cost && typeof stock.cost.quantity === 'number' ? stock.cost.quantity : 0;
+                            const profit = typeof stock.profit === 'number' ? stock.profit : 0;
+                            const profitPercent = typeof stock.profitPercent === 'number' ? stock.profitPercent : 0;
+                            
+                            // 計算今日損益
+                            // 直接使用股價漲跌幅與股數計算今日損益
+                            const todayProfit = quantity * change;
+                            
+                            // 今日損益百分比就是股價漲跌幅
+                            const todayProfitPercent = changePercent;
+                            
+                            return (
+                                <tr 
+                                    key={stock.symbol} 
+                                    className={updatedStocks.has(stock.symbol) ? 'flash-update' : ''}
+                                    onClick={() => handleStockClick(stock)}
+                                    style={{ cursor: 'pointer' }}
+                                >
+                                    <td className="stock-name-symbol-cell">
+                                        <div className="stock-name-display">{stock.name}</div>
+                                        <div className="stock-symbol-display">{stock.symbol}</div>
+                                    </td>
+                                    <td className={todayProfit >= 0 ? 'profit-up' : 'profit-down'}>
+                                        {stock.cost ? `${formatNumber(todayProfit)} (${formatPercent(todayProfitPercent)})` : '-'}
+                                    </td>
+                                    <td className={profit >= 0 ? 'profit-up' : 'profit-down'}>
+                                        {stock.cost ? `${formatNumber(profit)} (${formatPercent(profitPercent)})` : '-'}
+                                    </td>
+                                    <td>{stock.cost ? quantity : '-'}</td>
+                                    <td className="price-change-cell">
+                                        <div className={`price-display ${change >= 0 ? 'profit-up' : 'profit-down'}`}>{formatNumber(price)}</div>
+                                        <div className={`change-display ${change >= 0 ? 'profit-up' : 'profit-down'}`}>
+                                            {formatNumber(change)} ({formatPercent(changePercent)})
+                                        </div>
+                                    </td>
+                                    <td>{stock.cost ? formatNumber(averageCost) : '-'}</td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            )}
         </div>
     );
 }; 

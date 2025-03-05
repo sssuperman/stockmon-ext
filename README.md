@@ -41,10 +41,16 @@ A powerful VSCode extension for monitoring Taiwan stock market prices in real-ti
 This extension provides the following settings:
 此擴展提供以下設定選項：
 
-* `stockmon.symbols`: List of stock symbols to monitor
-  要監控的股票代號列表
-* `stockmon.refreshInterval`: Update interval in minutes
-  更新間隔（分鐘）
+* `stockmon.useProxy`: Whether to use proxy server for connection
+  是否使用代理伺服器連接
+* `stockmon.proxyApiBaseUrl`: API base URL for proxy server
+  代理伺服器的 API 基礎 URL
+* `stockmon.proxyWsHost`: WebSocket host for proxy server
+  代理伺服器的 WebSocket host
+* `stockmon.proxyWsPort`: WebSocket port for proxy server
+  代理伺服器的 WebSocket port
+* `stockmon.logLevel`: Log level for the extension (DEBUG, INFO, WARNING, ERROR)
+  擴展的日誌級別 (DEBUG, INFO, WARNING, ERROR)
 
 ## Security & Privacy 安全性與隱私
 
@@ -68,6 +74,16 @@ This extension provides the following settings:
   透過 email 發送回饋
 
 ## Release Notes 版本資訊
+
+### 0.2.2
+- Improved proxy configuration with clearer settings and commands
+  改進代理伺服器配置，提供更清晰的設定和命令
+- Added cost and profit information to table view
+  在表格視圖中添加成本和盈虧信息
+- Removed unused configuration options for better clarity
+  移除未使用的配置選項，提高清晰度
+- Enhanced configuration checking command with detailed proxy status
+  增強配置檢查命令，顯示詳細的代理狀態
 
 ### 0.1.7
 - Added WebSocket support for real-time updates

@@ -189,17 +189,19 @@
 }
 
 .order-book-header {
-    display: f;
-    grid-template-columns: 40% 20% 20% 40%;
-    text-align: left;
-    margin-bottom: 4px;
-    color: var(--vscode-foreground);
-    opacity: 0.7;
-    font-size: 11px;
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 3px;
+    font-weight: bold;
+    font-size: 0.85em;
 }
 
 .header-cell {
-    padding: 0 4px;
+    flex: 1;
+    text-align: center;
+    color: #aaa;
 }
 
 .order-book-rows {
@@ -216,26 +218,26 @@
 }
 
 .price-cell {
-    text-align: center;
-    padding: 0 2px;
-    font-size: 12px;
-    white-space: nowrap;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
 }
 
 .bid-price {
-    color: var(--vscode-terminal-ansiGreen);
+    color: #26a69a;
 }
 
 .ask-price {
-    color: var(--vscode-terminal-ansiRed);
+    color: #ef5350;
 }
 
 .size-cell {
-    position: relative;
-    height: 100%;
+    flex: 1;
     display: flex;
     align-items: center;
-    overflow: hidden;
+    height: 100%;
 }
 
 .bid-cell {
@@ -258,17 +260,603 @@
 }
 
 .bid-bar {
-    background-color: var(--vscode-terminal-ansiGreen);
+    background-color: rgba(38, 166, 154, 0.6);
     text-align: right;
+    border-radius: 2px;
 }
 
 .ask-bar {
-    background-color: var(--vscode-terminal-ansiRed);
+    background-color: rgba(239, 83, 80, 0.6);
     text-align: left;
+    border-radius: 2px;
 }
 
 .order-book-container {
     border-top: 1px solid var(--vscode-widget-border);
     margin-top: 8px;
     padding: 4px 0;
+}
+
+/* Stock Detail Styles */
+.stock-detail {
+    padding: 10px;
+    height: 100%;
+    overflow-y: auto;
+}
+
+.detail-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.detail-header h2 {
+    margin: 0 0 0 10px;
+    font-size: 1.2em;
+}
+
+.detail-section {
+    background-color: rgba(0, 0, 0, 0.1);
+    border-radius: 6px;
+    padding: 8px;
+    margin-bottom: 10px;
+}
+
+.detail-section h3 {
+    margin-top: 0;
+    margin-bottom: 16px;
+    color: var(--vscode-foreground);
+    font-size: 1.2em;
+}
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 12px;
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px;
+    border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.detail-label {
+    font-weight: bold;
+    color: var(--vscode-descriptionForeground);
+}
+
+.detail-value {
+    text-align: right;
+    color: var(--vscode-foreground);
+}
+
+.detail-value.profit {
+    color: var(--vscode-charts-red);
+}
+
+.detail-value.loss {
+    color: var(--vscode-charts-green);
+}
+
+.detail-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 16px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+    .detail-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.stock-card {
+    background-color: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 8px;
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+}
+
+.stock-card:hover {
+    background-color: var(--vscode-list-hoverBackground);
+}
+
+.menu-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #cccccc;
+    font-size: 16px;
+}
+
+.menu-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.menu-dropdown {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background-color: var(--vscode-dropdown-background);
+    border: 1px solid var(--vscode-dropdown-border);
+    border-radius: 3px;
+    z-index: 10;
+    min-width: 120px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 8px 12px;
+    background: none;
+    border: none;
+    color: var(--vscode-foreground);
+    cursor: pointer;
+}
+
+.menu-item:hover {
+    background-color: var(--vscode-list-hoverBackground);
+}
+
+.menu-item.delete {
+    color: var(--vscode-errorForeground);
+}
+
+.menu-item.delete:hover {
+    background-color: var(--vscode-inputValidation-errorBackground);
+}
+
+.stock-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.stock-table th, .stock-table td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.stock-table th {
+    font-weight: bold;
+    color: var(--vscode-foreground);
+}
+
+.stock-name-symbol-cell {
+    width: 40%;
+}
+
+.price-header, .cost-header {
+    width: 30%;
+}
+
+.stock-name-display {
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.stock-symbol-display {
+    font-size: 0.8em;
+    color: var(--vscode-descriptionForeground);
+}
+
+.price-display, .cost-display {
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.change-display, .profit-display {
+    font-size: 0.9em;
+}
+
+.no-cost {
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+}
+
+.cost-profit-cell {
+    text-align: right;
+}
+
+/* 閃爍更新效果 */
+@keyframes flash {
+    0% { background-color: transparent; }
+    50% { background-color: var(--vscode-editor-findMatchHighlightBackground); }
+    100% { background-color: transparent; }
+}
+
+.flash-update {
+    animation: flash 1s;
+}
+
+.view-mode-toggle {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.view-mode-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #cccccc;
+    font-size: 18px;
+}
+
+.view-mode-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.view-mode-button.active {
+    color: #0078d4;
+    background-color: rgba(0, 120, 212, 0.1);
+}
+
+.view-mode-button.add-stock {
+    margin-left: auto;
+    color: #73c991;
+}
+
+.view-mode-button.add-stock:hover {
+    background-color: rgba(115, 201, 145, 0.1);
+}
+
+.stock-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.stock-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+    table-layout: fixed;
+}
+
+.stock-table th,
+.stock-table td {
+    border: 1px solid var(--vscode-dropdown-border);
+    padding: 8px;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.stock-table th {
+    background-color: var(--vscode-editor-background);
+    font-weight: bold;
+}
+
+.stock-table tr:hover {
+    background-color: var(--vscode-list-hoverBackground);
+}
+
+.stock-table tr.flash-update {
+    animation: flash 1s;
+}
+
+/* 確保 codicon 圖標正確顯示 */
+.codicon {
+    font-family: codicon;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: normal;
+}
+
+.view-mode-button .codicon {
+    font-size: 16px;
+    line-height: 1;
+}
+
+.view-mode-button.add-stock .codicon {
+    font-size: 18px;
+}
+
+/* 股票名稱和代號的樣式 */
+.stock-name-symbol .detail-value {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.stock-name-display {
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.stock-symbol-display {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}
+
+/* 表格中股票名稱和代號的樣式 */
+.stock-name-symbol-cell {
+    padding: 8px;
+    vertical-align: middle;
+}
+
+.stock-table .stock-name-display {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 2px;
+}
+
+.stock-table .stock-symbol-display {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}
+
+/* 表格中價格與漲跌幅的樣式 */
+.price-change-cell {
+    padding: 8px;
+    vertical-align: middle;
+}
+
+.price-display {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 2px;
+}
+
+.change-display {
+    font-size: 12px;
+}
+
+/* 調整表格列寬 */
+.stock-table th:nth-child(1) {
+    width: 15%; /* 庫存股 */
+}
+
+.stock-table th:nth-child(2) {
+    width: 15%; /* 今日損益 */
+}
+
+.stock-table th:nth-child(3) {
+    width: 15%; /* 總損益 */
+}
+
+.stock-table th:nth-child(4) {
+    width: 10%; /* 股數 */
+}
+
+.stock-table th:nth-child(5) {
+    width: 15%; /* 股價/漲跌幅 */
+}
+
+.stock-table th:nth-child(6) {
+    width: 10%; /* 成本 */
+}
+
+/* 價格標題的樣式 */
+.price-header {
+    padding: 8px;
+    vertical-align: middle;
+}
+
+.price-title {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 2px;
+}
+
+.change-title {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.profit-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    margin-left: auto;
+}
+
+.today-profit-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    margin-left: auto;
+    margin-top: 5px;
+}
+
+/* 新增的 StockDetail 樣式 */
+.market-ratio-bar {
+    display: flex;
+    width: 100%;
+    height: 20px;
+    margin-bottom: 8px;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.in-volume-ratio {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(38, 166, 154, 0.6);
+    color: white;
+    font-size: 0.8em;
+    padding: 2px 0;
+    text-align: center;
+    min-width: 30px;
+}
+
+.out-volume-ratio {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(239, 83, 80, 0.6);
+    color: white;
+    font-size: 0.8em;
+    padding: 2px 0;
+    text-align: center;
+    min-width: 30px;
+}
+
+.order-book-container {
+    margin-bottom: 10px;
+}
+
+.order-book-summary {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 5px;
+    font-size: 0.85em;
+}
+
+.bid-total {
+    color: #26a69a;
+}
+
+.ask-total {
+    color: #ef5350;
+}
+
+.summary-spacer {
+    flex: 1;
+}
+
+.trading-info-grid {
+    display: grid;
+    gap: 6px;
+    width: 100%;
+}
+
+.trading-info-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.trading-info-item {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.2);
+    padding: 4px 8px;
+    border-radius: 4px;
+    min-height: 28px;
+}
+
+.info-label {
+    font-size: 0.85em;
+    color: #aaa;
+    margin-bottom: 0;
+}
+
+.info-value {
+    font-size: 0.95em;
+    font-weight: bold;
+}
+
+.market-info-grid {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+}
+
+.market-info-item {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.2);
+    padding: 4px 8px;
+    border-radius: 4px;
+    text-align: left;
+    min-height: 28px;
+}
+
+.detail-section {
+    background-color: rgba(0, 0, 0, 0.1);
+    border-radius: 6px;
+    padding: 8px;
+    margin-bottom: 10px;
+}
+
+.order-book-rows {
+    margin-bottom: 6px;
+}
+
+.order-row {
+    display: flex;
+    justify-content: space-between;
+    height: 22px;
+    margin-bottom: 2px;
+}
+
+.size-bar {
+    font-size: 0.85em;
+    padding: 2px 4px;
+}
+
+.bid-cell {
+    justify-content: flex-end;
+}
+
+.ask-cell {
+    justify-content: flex-start;
+}
+
+.price-cell {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.bid-price {
+    color: #4caf50;
+}
+
+.ask-price {
+    color: #f44336;
+}
+
+.size-bar {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    border-radius: 2px;
+    font-size: 0.9em;
+}
+
+.bid-bar {
+    background-color: rgba(76, 175, 80, 0.3);
+    justify-content: flex-end;
+}
+
+.ask-bar {
+    background-color: rgba(244, 67, 54, 0.3);
+    justify-content: flex-start;
 } 

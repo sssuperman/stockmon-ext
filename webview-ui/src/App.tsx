@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { StockList } from './components/StockList';
+import { StockDetail } from './components/StockDetail';
 import { Header } from './components/Header';
-import { VSCodeButton, VSCodeDivider } from '@vscode/webview-ui-toolkit/react';
+import { VSCodeButton } from '@vscode/webview-ui-toolkit/react';
 import './App.css';
-import { vscode } from "./utilities/vscode";
+import { vscode, registerMessageHandler, postMessage } from "./utilities/vscode";
 import { WebSocketState, StockInventory } from '../../src/types';
 
 const App: React.FC = () => {
@@ -11,59 +12,88 @@ const App: React.FC = () => {
     const [wsState, setWsState] = useState<WebSocketState>(WebSocketState.CLOSED);
     const [sessionInfo, setSessionInfo] = useState<{ user?: string; is_authenticated: boolean }>({ is_authenticated: false });
     const [twseIndex, setTwseIndex] = useState<StockInventory | null>(null);
+    const [selectedStock, setSelectedStock] = useState<StockInventory | null>(null);
+    const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
 
     useEffect(() => {
-        // 創建消息處理函數
-        const messageHandler = (event: MessageEvent) => {
-            const message = event.data;
-            console.log('Received message in App:', message);
+        // Register message handler
+        registerMessageHandler((message) => {
+            console.log('Received message from extension:', message);
+            
             switch (message.type) {
+                case 'init':
+                case 'update':
+                    setStocks(message.stocks || []);
+                    if (message.twseIndex) {
+                        setTwseIndex(message.twseIndex);
+                    }
+                    break;
                 case 'updateStocks':
-                    console.log('Updating stocks:', message.stocks);
-                    setStocks(message.stocks);
-                    break;
-                case 'updateWebSocketState':
-                    console.log('Updating WebSocket state:', message.state);
-                    setWsState(message.state);
-                    break;
-                case 'updateSessionInfo':
-                    console.log('Updating session info:', message.sessionInfo);
-                    setSessionInfo(message.sessionInfo);
+                    setStocks(message.stocks || []);
                     break;
                 case 'updateTwseIndex':
-                    console.log('Updating TWSE index:', message.index);
                     setTwseIndex(message.index);
                     break;
+                case 'updateWebSocketState':
+                    setWsState(message.state);
+                    break;
+                case 'showStockDetail':
+                    if (message.symbol) {
+                        setStocks(prevStocks => {
+                            const stock = prevStocks.find(s => s.symbol === message.symbol);
+                            if (stock) {
+                                setSelectedStock(stock);
+                                setViewMode('detail');
+                            }
+                            return prevStocks;
+                        });
+                    }
+                    break;
             }
-        };
+        });
 
-        // 添加消息監聽器
-        window.addEventListener('message', messageHandler);
-
-        // 請求初始數據
-        vscode.postMessage({ command: 'getStocks' });
-
-        // 清理函數：移除消息監聽器
-        return () => {
-            window.removeEventListener('message', messageHandler);
-        };
-    }, []); // 空依賴數組，只在組件掛載時執行一次
-
-    const handleAddStock = () => {
-        vscode.postMessage({ command: 'addStock'});
-    };
+        // Request initial data
+        postMessage({ command: 'getStocks' });
+    }, []);
 
     const handleDeleteStock = (symbol: string) => {
-        vscode.postMessage({ command: 'deleteStock', symbol });
+        postMessage({ command: 'deleteStock', symbol });
+    };
+
+    const handleStockSelect = (stock: StockInventory) => {
+        console.log('Stock selected in App:', stock);
+        setSelectedStock(stock);
+        setViewMode('detail');
+    };
+
+    const handleBackToList = () => {
+        console.log('Back to list called');
+        setViewMode('list');
     };
 
     return (
         <div className="container">
             <Header wsState={wsState} sessionInfo={sessionInfo} />
-            <div className="actions">
-                <VSCodeButton onClick={handleAddStock}>Add Stock</VSCodeButton>
-            </div>
-            <StockList stocks={stocks} onDelete={handleDeleteStock} twseIndex={twseIndex} />
+            
+            {viewMode === 'list' && (
+                <>
+                    <StockList 
+                        stocks={stocks} 
+                        onDelete={handleDeleteStock} 
+                        twseIndex={twseIndex}
+                        onSelectStock={handleStockSelect}
+                        key="stock-list"
+                    />
+                </>
+            )}
+            
+            {viewMode === 'detail' && selectedStock && (
+                <StockDetail 
+                    stock={selectedStock} 
+                    onBack={handleBackToList} 
+                    key={`stock-detail-${selectedStock.symbol}`}
+                />
+            )}
         </div>
     );
 };
