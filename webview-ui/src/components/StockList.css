@@ -859,4 +859,79 @@
 .ask-bar {
     background-color: rgba(244, 67, 54, 0.3);
     justify-content: flex-start;
+}
+
+/* 新增投資組合摘要區塊樣式 */
+.portfolio-summary {
+    background-color: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 8px;
+}
+
+.summary-container {
+    display: flex;
+    justify-content: space-between;
+}
+
+.summary-block {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0 12px;
+    position: relative;
+}
+
+.summary-block:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 10%;
+    height: 80%;
+    width: 1px;
+    background-color: var(--vscode-widget-border);
+}
+
+.summary-title {
+    font-size: 0.9em;
+    color: var(--vscode-textPreformat-foreground);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.summary-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--vscode-textPreformat-foreground);
+}
+
+.summary-amount {
+    font-size: 1.8em;
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.summary-percent {
+    font-size: 1.1em;
+    font-weight: bold;
+}
+
+.summary-cost {
+    font-size: 0.9em;
+    color: var(--vscode-textPreformat-foreground);
+}
+
+/* 確保利潤顏色一致 */
+.summary-amount.profit-up,
+.summary-percent.profit-up {
+    color: var(--vscode-terminal-ansiRed);
+}
+
+.summary-amount.profit-down,
+.summary-percent.profit-down {
+    color: var(--vscode-terminal-ansiGreen);
 } 

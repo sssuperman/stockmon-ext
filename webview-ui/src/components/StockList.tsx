@@ -132,6 +132,59 @@ export const StockList: React.FC<StockListProps> = ({ stocks, onDelete, twseInde
         return String(time);
     };
 
+    // 計算總體今日損益和總損益
+    const calculateTotalProfits = () => {
+        let totalDailyProfit = 0;
+        let totalProfit = 0;
+        let totalInvestment = 0;
+        let totalMarketValue = 0;
+
+        stocks.forEach(stock => {
+            const quantity = stock.cost?.quantity || 0;
+            const price = typeof stock.price === 'number' ? stock.price : 0;
+            const change = typeof stock.change === 'number' ? stock.change : 0;
+            const profit = typeof stock.profit === 'number' ? stock.profit : 0;
+            
+            // 計算今日損益 = 股數 * 漲跌幅
+            const dailyProfit = quantity * change;
+            totalDailyProfit += dailyProfit;
+            
+            // 累計總損益
+            totalProfit += profit;
+            
+            // 計算總投資成本和市值
+            if (stock.cost) {
+                const averageCost = typeof stock.cost.averageCost === 'number' 
+                    ? stock.cost.averageCost 
+                    : typeof stock.cost.averageCost === 'string' 
+                        ? parseFloat(stock.cost.averageCost) 
+                        : 0;
+                
+                totalInvestment += averageCost * quantity;
+                totalMarketValue += price * quantity;
+            }
+        });
+
+        // 計算總體損益百分比
+        const totalProfitPercent = totalInvestment > 0 
+            ? (totalProfit / totalInvestment) * 100 
+            : 0;
+        
+        // 計算今日損益百分比
+        const totalDailyProfitPercent = totalInvestment > 0 
+            ? (totalDailyProfit / totalInvestment) * 100 
+            : 0;
+
+        return {
+            totalDailyProfit,
+            totalDailyProfitPercent,
+            totalProfit,
+            totalProfitPercent,
+            totalInvestment,
+            totalMarketValue
+        };
+    };
+
     // 添加 K 棒圖元件
     const KLineBar: React.FC<{
         open: number;
@@ -176,6 +229,99 @@ export const StockList: React.FC<StockListProps> = ({ stocks, onDelete, twseInde
                     fill={barColor}
                 />
             </svg>
+        );
+    };
+
+    // 新增總體損益摘要組件
+    const SummarySection = () => {
+        const {
+            totalDailyProfit,
+            totalDailyProfitPercent,
+            totalProfit,
+            totalProfitPercent,
+            totalInvestment,
+            totalMarketValue
+        } = calculateTotalProfits();
+
+        // 如果沒有持股，不顯示摘要
+        if (stocks.length === 0 || !stocks.some(stock => stock.cost && stock.cost.quantity > 0)) {
+            return null;
+        }
+
+        return (
+            <div className="portfolio-summary">
+                <div className="summary-container">
+                    {/* 今日損益區塊 */}
+                    <div className="summary-block">
+                        <div className="summary-title">
+                            今日損益
+                            <span className="summary-icon">
+                                <svg width="16" height="16" viewBox="0 0 16 16">
+                                    <rect x="2" y="2" width="3" height="12" fill={totalDailyProfit >= 0 ? "var(--vscode-terminal-ansiRed)" : "var(--vscode-terminal-ansiGreen)"} />
+                                    <rect x="6" y="5" width="3" height="9" fill={totalDailyProfit >= 0 ? "var(--vscode-terminal-ansiRed)" : "var(--vscode-terminal-ansiGreen)"} />
+                                    <rect x="10" y="8" width="3" height="6" fill={totalDailyProfit >= 0 ? "var(--vscode-terminal-ansiRed)" : "var(--vscode-terminal-ansiGreen)"} />
+                                </svg>
+                            </span>
+                        </div>
+                        <div className={`summary-amount ${totalDailyProfit >= 0 ? 'profit-up' : 'profit-down'}`}>
+                            {totalDailyProfit >= 0 ? '+' : ''}{formatNumber(totalDailyProfit)}
+                        </div>
+                        <div className={`summary-percent ${totalDailyProfit >= 0 ? 'profit-up' : 'profit-down'}`}>
+                            {formatPercent(totalDailyProfitPercent)}
+                        </div>
+                    </div>
+
+                    {/* 累積損益區塊 */}
+                    <div className="summary-block">
+                        <div className="summary-title">
+                            累積損益
+                            <span className="summary-icon">
+                                <svg width="16" height="16" viewBox="0 0 16 16">
+                                    <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                                    <path 
+                                        d={`M8,2 A6,6 0 ${totalProfit >= 0 ? '0,1' : '0,0'} 8,14 A6,6 0 ${totalProfit >= 0 ? '0,1' : '0,0'} 8,2`} 
+                                        fill={totalProfit >= 0 ? "var(--vscode-terminal-ansiRed)" : "var(--vscode-terminal-ansiGreen)"} 
+                                    />
+                                </svg>
+                            </span>
+                        </div>
+                        <div className={`summary-amount ${totalProfit >= 0 ? 'profit-up' : 'profit-down'}`}>
+                            {totalProfit >= 0 ? '+' : ''}{formatNumber(totalProfit)}
+                        </div>
+                        <div className={`summary-percent ${totalProfit >= 0 ? 'profit-up' : 'profit-down'}`}>
+                            {formatPercent(totalProfitPercent)}
+                        </div>
+                    </div>
+
+                    {/* 股票市值區塊 */}
+                    <div className="summary-block">
+                        <div className="summary-title">
+                            股票市值
+                            <span className="summary-icon">
+                                <svg width="16" height="16" viewBox="0 0 16 16">
+                                    <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                                    <path 
+                                        d={`M8,2 A6,6 0 0,1 14,8 A6,6 0 0,1 8,14`} 
+                                        fill="var(--vscode-terminal-ansiRed)" 
+                                        opacity="0.7"
+                                    />
+                                    <path 
+                                        d={`M8,2 A6,6 0 0,0 2,8 A6,6 0 0,0 8,14`} 
+                                        fill="var(--vscode-terminal-ansiGreen)" 
+                                        opacity="0.7"
+                                    />
+                                </svg>
+                            </span>
+                        </div>
+                        <div className="summary-amount">
+                            {formatNumber(totalMarketValue)}
+                        </div>
+                        <div className="summary-cost">
+                            成本 {formatNumber(totalInvestment)}
+                        </div>
+                    </div>
+                </div>
+            </div>
         );
     };
 
@@ -391,6 +537,10 @@ export const StockList: React.FC<StockListProps> = ({ stocks, onDelete, twseInde
             <div className="index-section">
                 <IndexCard />
             </div>
+            
+            {/* 添加總體損益摘要區塊 */}
+            <SummarySection />
+            
             <VSCodeDivider />
 
             {viewMode === 'card' ? (
