@@ -192,7 +192,7 @@ export const useWebSocketStore = create<WebSocketStoreState>((set, get) => ({
                 } else {
                   useStockDataStore.getState().updateStock(stockData);
                 }
-                logger.log(LogCategory.WEBSOCKET, `WebSocketStore Updated data for ${stockData.symbol}`);
+                logger.debug(LogCategory.WEBSOCKET, `WebSocketStore Updated data for ${stockData.symbol}`);
                 break;
               case 'connection_established':
                 set({ wsState: WebSocketState.CONNECTED });

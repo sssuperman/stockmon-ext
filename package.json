@@ -2,7 +2,7 @@
   "name": "stockmon",
   "displayName": "stock-monitor",
   "description": "A stock monitoring and analysis platform. Stock Mate for Programmer",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "publisher": "stockmon",
   "license": "MIT",
   "icon": "./resources/icon.png",

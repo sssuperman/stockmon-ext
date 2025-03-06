@@ -96,7 +96,7 @@ export class StockPanel {
                     const sanitizedIndex = state.twseIndex ? 
                         this._deepSanitizeData([state.twseIndex])[0] : null;
                     
-                    StockPanel.logger.log(LogCategory.PANEL, `Store updated - sending to panel - stocks: ${sanitizedStocks.length}, has index: ${!!sanitizedIndex}`);
+                    StockPanel.logger.debug(LogCategory.PANEL, `Store updated - sending to panel - stocks: ${sanitizedStocks.length}, has index: ${!!sanitizedIndex}`);
                     this._panel.webview.postMessage({
                         type: 'update',
                         stocks: sanitizedStocks,
