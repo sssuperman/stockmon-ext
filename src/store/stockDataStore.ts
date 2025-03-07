@@ -17,6 +17,13 @@ interface UserStockResponse {
   average_cost: number;
   created_at: string;
   updated_at: string;
+  is_cost_set: boolean;
+  is_quantity_set: boolean;
+  version: number;
+  last_sync_timestamp: number;
+  client_uuid: string | null;
+  has_conflict: boolean;
+  conflict_resolution?: string;
 }
 
 // Add new interfaces
@@ -26,6 +33,8 @@ interface SyncQueueItem {
   quantity?: number;
   averageCost?: number;
   timestamp: number;
+  version?: number;
+  last_sync_timestamp?: number;
 }
 
 interface StockDataState {
@@ -70,7 +79,7 @@ interface StockDataState {
   startAutoSync: () => void;
   stopAutoSync: () => void;
   checkAndSync: () => Promise<void>;
-
+  
   // 修改移除相關的方法定義
   unsubscribeStock: (symbol: string) => Promise<void>;     // WebSocket 取消訂閱
   removeStock: (symbol: string) => Promise<void>;          // 高層流程控制
@@ -138,6 +147,7 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
   updateStockCost: async (symbol: string, cost: StockCostData) => {
     const logger = LoggerService.getInstance();
     const context = ExtensionContextManager.getContext();
+    const sessionStore = useSessionStore.getState();
     
     try {
       // 檢查股票是否存在
@@ -164,10 +174,12 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
       // 保存到全局狀態
       context.globalState.update('stocks', get().stocks);
 
-      // 同步到服務器
-      if (useSessionStore.getState().authToken) {
+      // 同步到服務器 - 只有在用戶已登入時才直接同步
+      if (sessionStore.isAuthenticated && sessionStore.authToken) {
+        logger.log(LogCategory.SYNC, `User authenticated, syncing stock ${symbol} directly to server`);
         await get().syncStockToServer(symbol, cost.quantity, cost.averageCost);
       } else {
+        logger.log(LogCategory.SYNC, `User not authenticated, adding stock ${symbol} to sync queue`);
         get().addToSyncQueue({
           action: 'update',
           symbol,
@@ -179,6 +191,13 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
       logger.log(LogCategory.STOCK_DATA, `Successfully updated cost for ${symbol}`);
     } catch (error) {
       logger.logError(LogCategory.STOCK_DATA, error, 'Failed to update stock cost');
+      // 如果同步失敗，添加到同步隊列
+      get().addToSyncQueue({
+        action: 'update',
+        symbol,
+        quantity: cost.quantity,
+        averageCost: cost.averageCost
+      });
       throw error;
     }
   },
@@ -326,32 +345,101 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
   },
 
   updateUserStock: async (symbol: string, quantity: number, averageCost: number) => {
+    const logger = LoggerService.getInstance();
+    const sessionStore = useSessionStore.getState();
+    
     try {
+      if (!sessionStore.isAuthenticated || !sessionStore.authToken) {
+        logger.log(LogCategory.SYNC, `User not authenticated, adding stock ${symbol} to sync queue`);
+        get().addToSyncQueue({
+          action: 'update',
+          symbol,
+          quantity,
+          averageCost
+        });
+        return;
+      }
+
+      // 獲取當前時間戳和客戶端UUID
+      const currentTimestamp = Date.now();
+      const clientUuid = sessionStore.clientUuid;
+      
+      // 查找本地股票數據，獲取版本信息
+      const stock = get().stocks.find(s => s.symbol === symbol);
+      const version = stock?.syncVersion || 1;
+      const lastSyncTimestamp = stock?.lastSyncTimestamp || 0;
+
+      // 處理台灣股票代號 - 不需要在客戶端進行格式化，因為伺服器端會處理
+      // 保持原始代號，讓伺服器端根據規則處理
+      const stockId = symbol;
+
       const headers = {
         'Authorization': `Bearer ${useSessionStore.getState().authToken}`,
         'Content-Type': 'application/json',
+        'X-Client-UUID': clientUuid
       };
 
+      logger.log(LogCategory.SYNC, `Updating stock ${symbol} with version ${version} and timestamp ${lastSyncTimestamp}`);
+
       const response = await axios.put<UserStockResponse>(
-        `${urls.stocks.update(symbol)}`,
+        `${urls.stocks.update(stockId)}`,
         {
-          stock_id: symbol,
+          stock_id: stockId,
           quantity,
-          average_cost: averageCost
+          average_cost: averageCost,
+          version,
+          last_sync_timestamp: lastSyncTimestamp,
+          client_uuid: clientUuid
         },
         { headers }
       );
 
+      // 檢查是否有衝突
+      if (response.status === 409 && response.data.has_conflict) {
+        logger.log(LogCategory.SYNC, `Conflict detected for ${symbol}: ${response.data.conflict_resolution}`);
+        
+        // 使用伺服器數據更新本地狀態
+        set((state) => {
+          const updatedStocks = state.stocks.map(stock => {
+            if (stock.symbol === symbol) {
+              return {
+                ...stock,
+                cost: {
+                  cost: response.data.average_cost,
+                  quantity: response.data.quantity,
+                  averageCost: response.data.average_cost
+                },
+                syncVersion: response.data.version,
+                lastSyncTimestamp: response.data.last_sync_timestamp
+              } as StockInventory;
+            }
+            return stock;
+          });
+
+          const context = ExtensionContextManager.getContext();
+          context.globalState.update('stocks', updatedStocks);
+
+          return { stocks: updatedStocks };
+        });
+        
+        // 通知用戶衝突已解決
+        vscode.window.showInformationMessage(`股票 ${symbol} 資料已從伺服器更新，解決了資料衝突`);
+        return;
+      }
+
+      // 正常更新
       set((state) => {
         const updatedStocks = state.stocks.map(stock => {
           if (stock.symbol === symbol) {
             return {
               ...stock,
               cost: {
-                cost: response.data.average_cost,  // 確保符合 StockCostData 介面
+                cost: response.data.average_cost,
                 quantity: response.data.quantity,
                 averageCost: response.data.average_cost
-              }
+              },
+              syncVersion: response.data.version,
+              lastSyncTimestamp: response.data.last_sync_timestamp
             } as StockInventory;
           }
           return stock;
@@ -367,6 +455,7 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
         error.message.includes('Network Error') ||
         error.message.includes('Failed to fetch')
       )) {
+        // 添加到同步隊列，但不包含 timestamp 欄位，因為 addToSyncQueue 會自動添加
         get().addToSyncQueue({
           action: 'update',
           symbol,
@@ -374,28 +463,46 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
           averageCost
         });
       }
-      console.error('Failed to update user stock:', error);
+      logger.logError(LogCategory.STOCK_DATA, error, 'Failed to update user stock');
       throw error;
     }
   },
 
   deleteUserStock: async (symbol: string) => {
+    const logger = LoggerService.getInstance();
+    const sessionStore = useSessionStore.getState();
+    
     try {
+      if (!sessionStore.isAuthenticated || !sessionStore.authToken) {
+        logger.log(LogCategory.SYNC, `User not authenticated, adding stock ${symbol} to sync queue for deletion`);
+        get().addToSyncQueue({
+          action: 'delete',
+          symbol
+        });
+        return;
+      }
+
+      // 處理台灣股票代號 - 不需要在客戶端進行格式化，因為伺服器端會處理
+      // 保持原始代號，讓伺服器端根據規則處理
+      const stockId = symbol;
+
       const headers = {
         'Authorization': `Bearer ${useSessionStore.getState().authToken}`,
         'Content-Type': 'application/json',
+        'X-Client-UUID': sessionStore.clientUuid
       };
 
       await axios.delete(
-        `${urls.stocks.delete(symbol)}`,
+        `${urls.stocks.delete(stockId)}`,
         { headers }
       );
 
+      // 更新本地狀態，移除成本信息
       set((state) => {
         const updatedStocks = state.stocks.map(stock => {
           if (stock.symbol === symbol) {
-            const { cost, ...stockWithoutCost } = stock;
-            return stockWithoutCost;
+            const { cost, syncVersion, lastSyncTimestamp, clientUuid, ...stockWithoutCost } = stock;
+            return stockWithoutCost as StockInventory;
           }
           return stock;
         });
@@ -415,7 +522,7 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
           symbol
         });
       }
-      console.error('Failed to delete user stock:', error);
+      logger.logError(LogCategory.STOCK_DATA, error, `Failed to delete user stock: ${symbol}`);
       throw error;
     }
   },
@@ -423,10 +530,31 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
   syncQueue: [],
 
   addToSyncQueue: (item: Omit<SyncQueueItem, 'timestamp'>) => {
+    const logger = LoggerService.getInstance();
+    
     set((state) => {
-      const newQueue = [...state.syncQueue, { ...item, timestamp: Date.now() }];
+      // 檢查是否已有相同股票的操作在隊列中
+      const existingItemIndex = state.syncQueue.findIndex(
+        queueItem => queueItem.symbol === item.symbol && queueItem.action === item.action
+      );
+      
+      let newQueue: SyncQueueItem[];
+      
+      if (existingItemIndex >= 0) {
+        // 如果已存在，更新該項目
+        logger.log(LogCategory.SYNC, `Updating existing queue item for ${item.symbol}`);
+        newQueue = [...state.syncQueue];
+        newQueue[existingItemIndex] = { 
+          ...item, 
+          timestamp: Date.now() 
+        };
+      } else {
+        // 如果不存在，添加新項目
+        logger.log(LogCategory.SYNC, `Adding new queue item for ${item.symbol}`);
+        newQueue = [...state.syncQueue, { ...item, timestamp: Date.now() }];
+      }
 
-      // Save to global state
+      // 保存到全局狀態
       const context = ExtensionContextManager.getContext();
       context.globalState.update('syncQueue', newQueue);
 
@@ -437,13 +565,23 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
   processSyncQueue: async () => {
     const logger = LoggerService.getInstance();
     const queue = [...get().syncQueue];
+    const sessionStore = useSessionStore.getState();
     
     try {
       if (queue.length === 0) return;
 
+      // 檢查用戶是否已登入
+      if (!useSessionStore.getState().isAuthenticated || !useSessionStore.getState().authToken) {
+        logger.log(LogCategory.SYNC, 'User not authenticated, skipping sync queue processing');
+        return;
+      }
+
       logger.log(LogCategory.SYNC, `Processing ${queue.length} items in sync queue`);
 
-      for (const item of queue) {
+      // 按時間戳排序，確保按正確順序處理
+      const sortedQueue = [...queue].sort((a, b) => a.timestamp - b.timestamp);
+
+      for (const item of sortedQueue) {
         try {
           logger.log(LogCategory.SYNC, `Processing item: ${JSON.stringify(item)}`);
 
@@ -472,14 +610,26 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
               break;
           }
           logger.log(LogCategory.SYNC, `Successfully processed item for ${item.symbol}`);
+          
+          // 處理成功後，從隊列中移除該項目
+          set((state) => {
+            const updatedQueue = state.syncQueue.filter(
+              queueItem => !(queueItem.symbol === item.symbol && queueItem.action === item.action)
+            );
+            
+            // 更新全局狀態
+            const context = ExtensionContextManager.getContext();
+            context.globalState.update('syncQueue', updatedQueue);
+            
+            return { syncQueue: updatedQueue };
+          });
         } catch (error) {
           logger.logError(LogCategory.SYNC, error, `Error processing item ${item.symbol}`);
+          // 失敗的項目保留在隊列中，下次再嘗試
         }
       }
 
-      // 清除已處理的隊列
-      get().clearSyncQueue();
-      logger.log(LogCategory.SYNC, 'Sync queue processing completed successfully');
+      logger.log(LogCategory.SYNC, 'Sync queue processing completed');
     } catch (error) {
       logger.logError(LogCategory.SYNC, error, 'Failed to process sync queue');
       throw error;
@@ -568,22 +718,114 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
 
   // 3. 同步到服務器的專用方法
   syncStockToServer: async (symbol: string, quantity = 0, averageCost = 0) => {
+    const logger = LoggerService.getInstance();
+    const sessionStore = useSessionStore.getState();
+    
     try {
+      if (!sessionStore.isAuthenticated || !sessionStore.authToken) {
+        logger.log(LogCategory.SYNC, `User not authenticated, adding stock ${symbol} to sync queue`);
+        get().addToSyncQueue({
+          action: 'add',
+          symbol,
+          quantity,
+          averageCost
+        });
+        return;
+      }
+
+      // 獲取當前時間戳和客戶端UUID
+      const currentTimestamp = Date.now();
+      const clientUuid = sessionStore.clientUuid;
+      
+      // 查找本地股票數據，獲取版本信息
+      const stock = get().stocks.find(s => s.symbol === symbol);
+      const version = stock?.syncVersion || 1;
+      const lastSyncTimestamp = stock?.lastSyncTimestamp || 0;
+
+      // 處理台灣股票代號 - 不需要在客戶端進行格式化，因為伺服器端會處理
+      // 保持原始代號，讓伺服器端根據規則處理
+      const stockId = symbol;
+
       const headers = {
         'Authorization': `Bearer ${useSessionStore.getState().authToken}`,
         'Content-Type': 'application/json',
+        'X-Client-UUID': clientUuid
       };
 
-      await axios.post(
+      logger.log(LogCategory.SYNC, `Syncing stock ${symbol} with version ${version} and timestamp ${lastSyncTimestamp}`);
+
+      const response = await axios.post<UserStockResponse>(
         urls.stocks.create,
         {
-          stock_id: symbol,
+          stock_id: stockId,
           quantity,
-          average_cost: averageCost
+          average_cost: averageCost,
+          version,
+          last_sync_timestamp: lastSyncTimestamp,
+          client_uuid: clientUuid
         },
         { headers }
       );
+
+      // 檢查是否有衝突
+      if (response.status === 409 && response.data.has_conflict) {
+        logger.log(LogCategory.SYNC, `Conflict detected for ${symbol}: ${response.data.conflict_resolution}`);
+        
+        // 使用伺服器數據更新本地狀態
+        set((state) => {
+          const updatedStocks = state.stocks.map(stock => {
+            if (stock.symbol === symbol) {
+              return {
+                ...stock,
+                cost: response.data.average_cost !== null ? {
+                  cost: response.data.average_cost,
+                  quantity: response.data.quantity,
+                  averageCost: response.data.average_cost
+                } : undefined,
+                syncVersion: response.data.version,
+                lastSyncTimestamp: response.data.last_sync_timestamp
+              } as StockInventory;
+            }
+            return stock;
+          });
+
+          const context = ExtensionContextManager.getContext();
+          context.globalState.update('stocks', updatedStocks);
+
+          return { stocks: updatedStocks };
+        });
+        
+        // 通知用戶衝突已解決
+        vscode.window.showInformationMessage(`股票 ${symbol} 資料已從伺服器更新，解決了資料衝突`);
+        return;
+      }
+
+      // 正常更新本地狀態
+      set((state) => {
+        const updatedStocks = state.stocks.map(stock => {
+          if (stock.symbol === symbol) {
+            return {
+              ...stock,
+              syncVersion: response.data.version,
+              lastSyncTimestamp: response.data.last_sync_timestamp,
+              cost: response.data.average_cost !== null ? {
+                cost: response.data.average_cost,
+                quantity: response.data.quantity,
+                averageCost: response.data.average_cost
+              } : stock.cost
+            };
+          }
+          return stock;
+        });
+
+        const context = ExtensionContextManager.getContext();
+        context.globalState.update('stocks', updatedStocks);
+
+        return { stocks: updatedStocks };
+      });
     } catch (error) {
+      logger.logError(LogCategory.STOCK_DATA, error, `Failed to sync stock ${symbol} to server`);
+      // 添加到同步隊列，但不包含 timestamp 欄位，因為 addToSyncQueue 會自動添加
       get().addToSyncQueue({
         action: 'add',
         symbol,
@@ -596,36 +838,54 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
 
   // 自動同步相關的狀態
   autoSyncEnabled: false,
-  autoSyncInterval: 1 * 60 * 1000, // 預設 1 分鐘
+  autoSyncInterval: 5 * 60 * 1000, // 預設 5 分鐘
   lastSyncTime: null,
 
-  // 檢查並執行同步
+  // 改進的檢查並執行同步方法，依賴伺服器端的衝突解決
   checkAndSync: async () => {
     const logger = LoggerService.getInstance();
-    const queue = get().syncQueue;
+    const sessionStore = useSessionStore.getState();
     const now = Date.now();
     const lastSync = get().lastSyncTime;
-
-    // 如果隊列為空，只更新最後同步時間
-    if (queue.length === 0) {
-      set({ lastSyncTime: now });
+    
+    // 檢查用戶是否已登入
+    if (!useSessionStore.getState().isAuthenticated || !useSessionStore.getState().authToken) {
+      logger.log(LogCategory.SYNC, 'User not authenticated, skipping sync');
+      get().stopAutoSync(); // 如果用戶未登入，停止自動同步
       return;
     }
 
     try {
-      logger.log(LogCategory.SYNC, 'Periodic sync: processing queue...');
-      await get().processSyncQueue();
+      // 先處理同步隊列
+      const queue = get().syncQueue;
+      if (queue.length > 0) {
+        logger.log(LogCategory.SYNC, 'Processing sync queue before server sync');
+        await get().processSyncQueue();
+      }
+
+      // 然後從服務器同步最新數據
+      logger.log(LogCategory.SYNC, 'Syncing data from server');
+      await get().syncUserStocksFromServer();
+      
+      // 更新最後同步時間
       set({ lastSyncTime: now });
-      logger.log(LogCategory.SYNC, 'Periodic sync completed successfully');
+      logger.log(LogCategory.SYNC, `Sync completed, updated lastSyncTime to ${new Date(now).toISOString()}`);
     } catch (error) {
       logger.logError(LogCategory.SYNC, error, 'Periodic sync failed');
       // 不更新 lastSyncTime，這樣下次檢查時會重試
     }
   },
 
-  // 改進的開始自動同步
+  // 改進的開始自動同步方法
   startAutoSync: () => {
     const logger = LoggerService.getInstance();
+    const sessionStore = useSessionStore.getState();
+    
+    // 檢查用戶是否已登入
+    if (!useSessionStore.getState().isAuthenticated || !useSessionStore.getState().authToken) {
+      logger.log(LogCategory.SYNC, 'User not authenticated, not starting auto sync');
+      return;
+    }
     
     // 如果已經啟用，先停止
     if (get().autoSyncEnabled) {
@@ -634,20 +894,23 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
 
     // 設置啟用狀態
     set({ autoSyncEnabled: true });
+    logger.log(LogCategory.SYNC, `Starting auto sync with interval ${get().autoSyncInterval}ms`);
 
     // 定義週期性檢查函數
     const periodicCheck = async () => {
       if (!get().autoSyncEnabled) {
+        logger.log(LogCategory.SYNC, 'Auto sync disabled, stopping periodic check');
         return;
       }
 
       // 檢查是否已登入
-      if (!useSessionStore.getState().authToken) {
-        logger.log(LogCategory.SYNC, 'Auto sync: User not logged in, stopping sync');
+      if (!useSessionStore.getState().isAuthenticated || !useSessionStore.getState().authToken) {
+        logger.log(LogCategory.SYNC, 'User not authenticated, stopping auto sync');
         get().stopAutoSync();
         return;
       }
 
+      logger.log(LogCategory.SYNC, 'Running periodic sync check');
       await get().checkAndSync();
 
       // 設置下次檢查
@@ -655,7 +918,7 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
     };
 
     // 立即執行一次檢查，然後開始週期性檢查
-    logger.log(LogCategory.SYNC, 'Starting auto sync...');
+    logger.log(LogCategory.SYNC, 'Executing initial sync check');
     periodicCheck().catch(error => {
       logger.logError(LogCategory.SYNC, error, 'Error in periodic check');
     });
@@ -757,24 +1020,26 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
     }
   },
 
-  // 從服務器獲取並同步用戶股票
+  // 從服務器獲取並同步用戶股票，依賴伺服器端的衝突解決
   syncUserStocksFromServer: async () => {
     const logger = LoggerService.getInstance();
+    const sessionStore = useSessionStore.getState();
     
     try {
       logger.log(LogCategory.SYNC, 'Syncing user stocks from server...');
       
       // 檢查是否有 token
       const authToken = useSessionStore.getState().authToken;
-      if (!authToken) {
-        logger.log(LogCategory.SYNC, 'No auth token found, skipping sync');
+      if (!authToken || !sessionStore.isAuthenticated) {
+        logger.log(LogCategory.SYNC, 'No auth token or not authenticated, skipping sync');
         return;
       }
       
       // 從服務器獲取股票列表
       const response = await axios.get<UserStockResponse[]>(`${urls.stocks.list}`, {
         headers: {
-          'Authorization': `Bearer ${authToken}`
+          'Authorization': `Bearer ${authToken}`,
+          'X-Client-UUID': sessionStore.clientUuid
         }
       });
       
@@ -792,13 +1057,18 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
         const updatedStocks = currentStocks.map(stock => {
           const serverStock = response.data.find((s: UserStockResponse) => s.stock_symbol === stock.symbol);
           if (serverStock) {
+            // 使用伺服器數據更新本地狀態
             return {
               ...stock,
               cost: serverStock.average_cost !== null ? {
                 averageCost: serverStock.average_cost,
                 quantity: serverStock.quantity,
                 cost: serverStock.average_cost
-              } : undefined
+              } : undefined,
+              // 更新同步相關欄位
+              syncVersion: serverStock.version,
+              lastSyncTimestamp: serverStock.last_sync_timestamp,
+              clientUuid: serverStock.client_uuid || undefined
             };
           }
           return stock;
@@ -815,7 +1085,11 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
               averageCost: serverStock.average_cost,
               quantity: serverStock.quantity,
               cost: serverStock.average_cost
-            } : undefined
+            } : undefined,
+            // 添加同步相關欄位
+            syncVersion: serverStock.version,
+            lastSyncTimestamp: serverStock.last_sync_timestamp,
+            clientUuid: serverStock.client_uuid || undefined
           }));
 
         const finalStocks = [...updatedStocks, ...newStocks];

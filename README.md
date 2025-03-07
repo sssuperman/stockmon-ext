@@ -75,6 +75,20 @@ This extension provides the following settings:
 
 ## Release Notes 版本資訊
 
+### 0.2.5
+- Enhanced authentication system with comprehensive login/logout management
+  增強認證系統，提供完整的登入/登出管理
+- Added new status bar integration showing connection, login, and portfolio profit status
+  新增狀態欄整合，顯示連接狀態、登入狀態和投資組合收益狀況
+- Refactored stock data synchronization
+  重構股票資料同步機制
+- Enhanced localization for authentication 
+  增強認證和同步過程
+
+### 0.2.4
+- Added portfolio summary section showing total daily profit/loss and accumulated profit/loss
+  新增投資組合摘要區塊，顯示今日總損益及累積總損益
+
 ### 0.2.2
 - Improved proxy configuration with clearer settings and commands
   改進代理伺服器配置，提供更清晰的設定和命令

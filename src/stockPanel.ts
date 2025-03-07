@@ -6,6 +6,7 @@ import { getUri } from './utilities/getUri';
 import { channel } from 'diagnostics_channel';
 import { StockInventory } from './types';
 import { LoggerService, LogCategory } from './utilities/loggerService';
+import { useSessionStore } from './store/sessionStore';
 
 export class StockPanel {
     private static logger = LoggerService.getInstance();
@@ -82,10 +83,15 @@ export class StockPanel {
         
         StockPanel.logger.log(LogCategory.PANEL, `Sending initial data to webview - stocks: ${initialStocks.length}, has index: ${!!initialTwseIndex}`);
         
+        // Get session info
+        const sessionInfo = useSessionStore.getState().sessionInfo;
+        StockPanel.logger.log(LogCategory.PANEL, `Sending session info to webview: ${JSON.stringify(sessionInfo)}`);
+        
         this._panel.webview.postMessage({
             type: 'init',
             stocks: initialStocks,
-            twseIndex: initialTwseIndex
+            twseIndex: initialTwseIndex,
+            sessionInfo: sessionInfo
         });
 
         // 訂閱 store 更新 - 確保數據格式正確
@@ -100,7 +106,21 @@ export class StockPanel {
                     this._panel.webview.postMessage({
                         type: 'update',
                         stocks: sanitizedStocks,
-                        twseIndex: sanitizedIndex
+                        twseIndex: sanitizedIndex,
+                        sessionInfo: useSessionStore.getState().sessionInfo
+                    });
+                }
+            }
+        );
+
+        // Subscribe to session store updates
+        const unsubscribeSessionStore = useSessionStore.subscribe(
+            (state) => {
+                if (this._panel.visible) {
+                    StockPanel.logger.debug(LogCategory.PANEL, `Session updated - sending to panel: ${JSON.stringify(state.sessionInfo)}`);
+                    this._panel.webview.postMessage({
+                        type: 'updateSessionInfo',
+                        sessionInfo: state.sessionInfo
                     });
                 }
             }
@@ -133,6 +153,12 @@ export class StockPanel {
                         this._panel.webview.postMessage({
                             type: 'updateWebSocketState',
                             state: useWebSocketStore.getState().wsState
+                        });
+                        // Send session info
+                        const sessionState = useSessionStore.getState();
+                        this._panel.webview.postMessage({
+                            type: 'updateSessionInfo',
+                            sessionInfo: sessionState.sessionInfo
                         });
                         break;
                     case 'addStock':
@@ -174,6 +200,21 @@ export class StockPanel {
                     case 'setCost':
                         vscode.commands.executeCommand('stockmon.setCost', message.symbol);
                         break;
+                    case 'login':
+                        vscode.commands.executeCommand('stockmon.login');
+                        break;
+                    case 'confirmLogout':
+                        const logoutResult = await vscode.window.showWarningMessage(
+                            'Are you sure you want to log out?',
+                            { modal: true },
+                            'Yes',
+                            'No'
+                        );
+                        
+                        if (logoutResult === 'Yes') {
+                            vscode.commands.executeCommand('stockmon.logout');
+                        }
+                        break;
                 }
             },
             null,
@@ -198,6 +239,7 @@ export class StockPanel {
         this._disposables.push({ dispose: () => {
             this._unsubscribeStockStore?.();
             unsubscribeWs();
+            unsubscribeSessionStore();
         }});
     }
 

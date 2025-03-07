@@ -44,6 +44,134 @@ export async function activate(context: vscode.ExtensionContext) {
     statusBarItem.show();
     context.subscriptions.push(statusBarItem);
 
+    // 創建一個命令來顯示登入/登出選項
+    let showLoginOptionsCommand = vscode.commands.registerCommand('stockmon.showLoginOptions', async () => {
+        const sessionState = useSessionStore.getState();
+        
+        if (sessionState.isAuthenticated) {
+            // 已登入，顯示用戶選項
+            const selected = await vscode.window.showQuickPick([
+                { label: '$(account) 用戶資訊', description: `已登入為 ${sessionState.sessionInfo?.user || 'User'}`, id: 'info' },
+                { label: '$(sign-out) 登出', description: '登出當前帳號', id: 'logout' }
+            ], {
+                placeHolder: '選擇操作'
+            });
+            
+            if (selected) {
+                if (selected.id === 'logout') {
+                    vscode.commands.executeCommand('stockmon.logout');
+                } else if (selected.id === 'info') {
+                    vscode.commands.executeCommand('stockmon.showSessionInfo');
+                }
+            }
+        } else {
+            // 未登入，直接執行登入命令
+            vscode.commands.executeCommand('stockmon.login');
+        }
+    });
+    
+    context.subscriptions.push(showLoginOptionsCommand);
+
+    // 更新狀態欄，整合連線狀態、登入狀態和損益
+    function updateStatusBar() {
+        const stockState = useStockDataStore.getState();
+        const sessionState = useSessionStore.getState();
+        const wsState = useWebSocketStore.getState().wsState;
+        
+        // 計算損益
+        const { totalProfit, hasPositions } = stockState.calculateTotalProfit();
+        
+        // 設置連線圖示
+        let connectionIcon = '';
+        let connectionTooltip = '';
+        
+        switch (wsState) {
+            case 'CONNECTED':
+                connectionIcon = '$(radio-tower)';
+                connectionTooltip = "已連線到股票服務";
+                break;
+            case 'CONNECTING':
+            case 'RECONNECTING':
+                connectionIcon = '$(sync~spin)';
+                connectionTooltip = "正在連線到股票服務...";
+                break;
+            default:
+                connectionIcon = '$(warning)';
+                connectionTooltip = "未連線到股票服務";
+                break;
+        }
+        
+        // 設置登入圖示
+        let loginIcon = sessionState.isAuthenticated ? '$(account)' : '$(sign-in)';
+        let loginTooltip = sessionState.isAuthenticated 
+            ? `已登入為 ${sessionState.sessionInfo?.user || 'User'}` 
+            : '點擊登入';
+        
+        // 設置損益文字
+        let profitText = '';
+        let profitColor = undefined;
+        
+        if (hasPositions) {
+            const formattedProfit = Math.round(totalProfit).toLocaleString();
+            
+            if (totalProfit > 0) {
+                profitColor = new vscode.ThemeColor('charts.red');
+                profitText = `+${formattedProfit}`;
+            } else if (totalProfit < 0) {
+                profitColor = new vscode.ThemeColor('charts.green');
+                profitText = `${formattedProfit}`;
+            } else {
+                profitText = `${formattedProfit}`;
+            }
+        }
+        
+        // 組合狀態欄文字
+        if (hasPositions) {
+            statusBarItem.text = `${connectionIcon} ${profitText} ${loginIcon}`.trim();
+        } else {
+            statusBarItem.text = `${connectionIcon} ${loginIcon}`.trim();
+        }
+        statusBarItem.tooltip = `${connectionTooltip} | ${loginTooltip}`;
+        statusBarItem.color = profitColor;
+        
+        // 設置點擊命令
+        if (!sessionState.isAuthenticated) {
+            // 未登入時，點擊顯示登入選項
+            statusBarItem.command = 'stockmon.showLoginOptions';
+        } else {
+            // 已登入時，點擊顯示面板
+            statusBarItem.command = 'stockmon.showPanel';
+        }
+    }
+
+    // 初始更新
+    updateStatusBar();
+
+    // 訂閱 WebSocket 狀態變化
+    useWebSocketStore.subscribe(async (state) => {
+        updateStatusBar();
+        
+        // 當 WebSocket 連接成功時，訂閱所有股票
+        if (state.wsState === 'CONNECTED') {
+            logger.info(LogCategory.WEBSOCKET, 'WebSocket connected, initializing data...');
+            // 直接訂閱所有本地股票，不需要等待同步
+            await useStockDataStore.getState().subscribeToAllStocks();
+        }
+    });
+
+    // 訂閱 Session 狀態變化
+    const unsubscribeSessionStore = useSessionStore.subscribe(() => {
+        updateStatusBar();
+    });
+
+    // 訂閱 Stock 數據變化
+    useStockDataStore.subscribe(() => {
+        updateStatusBar();
+    });
+
+    // 添加到待清理列表
+    context.subscriptions.push({ dispose: () => unsubscribeSessionStore() });
+
     // 註冊股票組合視圖
     const portfolioViewProvider = new PortfolioViewProvider();
     const portfolioView = vscode.window.createTreeView('stockmonPortfolio', {
@@ -186,8 +314,14 @@ export async function activate(context: vscode.ExtensionContext) {
             // 在背景進行同步，不阻塞主流程
             setTimeout(async () => {
                 try {
-                    await useStockDataStore.getState().syncUserStocksFromServer();
-                    useStockDataStore.getState().startAutoSync();
+                    // 確認用戶已登入才進行同步
+                    if (sessionStore.isAuthenticated && sessionStore.authToken) {
+                        logger.info(LogCategory.EXTENSION, 'User authenticated, syncing stocks from server');
+                        await useStockDataStore.getState().syncUserStocksFromServer();
+                        useStockDataStore.getState().startAutoSync();
+                    } else {
+                        logger.info(LogCategory.EXTENSION, 'User not authenticated, skipping sync');
+                    }
                 } catch (error) {
                     logger.logError(LogCategory.EXTENSION, error, 'Background sync error');
                 }
@@ -199,6 +333,8 @@ export async function activate(context: vscode.ExtensionContext) {
                 await sessionStore.setAuthToken(null, context);
                 await sessionStore.setSessionInfo(null, context);
             }
+            // 確保停止自動同步
+            useStockDataStore.getState().stopAutoSync();
         }
 
         // 在所有初始化完成後連接 WebSocket
@@ -209,42 +345,6 @@ export async function activate(context: vscode.ExtensionContext) {
         logger.logError(LogCategory.EXTENSION, error, 'Error during extension activation');
         wsStore.connect(logger);
     }
-
-    // 訂閱 stockDataStore 中的股票數據變化，更新狀態欄損益
-    useStockDataStore.subscribe(state => {
-        updateStatusBarProfit(statusBarItem);
-    });
-
-    // 訂閱 WebSocket 狀態變化，更新狀態欄連線圖示
-    useWebSocketStore.subscribe(
-        async (state) => {
-            const wsState = state.wsState;
-            
-            // 取得目前的損益文字
-            const profitText = statusBarItem.text.replace(/\$\(.*?\)\s*/, '');
-
-            switch (wsState) {
-                case 'CONNECTED':
-                    logger.info(LogCategory.WEBSOCKET, 'WebSocket connected, initializing data...');
-                    statusBarItem.text = `$(radio-tower) ${profitText}`;
-                    statusBarItem.tooltip = "Connected to stock service";
-                    
-                    // 直接訂閱所有本地股票，不需要等待同步
-                    await useStockDataStore.getState().subscribeToAllStocks();
-                    break;
-
-                case 'CONNECTING':
-                    statusBarItem.text = `$(sync~spin) ${profitText}`;
-                    statusBarItem.tooltip = "Connecting to stock service...";
-                    break;
-
-                case 'CLOSED':
-                    statusBarItem.text = `$(warning) ${profitText}`;
-                    statusBarItem.tooltip = "Disconnected from stock service";
-                    break;
-            }
-        }
-    );
 
     // Function to update command titles based on current language
     // Multiple languages command are supported here
@@ -263,7 +363,9 @@ export async function activate(context: vscode.ExtensionContext) {
             { id: 'stockmon.logout', title: messages.commands.logout },
             { id: 'stockmon.showPanel', title: messages.commands.showPanel },
             { id: 'stockmon.clearAllSubscriptions', title: messages.commands.clearAllSubscriptions },
-            { id: 'stockmon.showSessionInfo', title: messages.commands.showSessionInfo }
+            { id: 'stockmon.showSessionInfo', title: messages.commands.showSessionInfo },
+            { id: 'stockmon.syncUserStocks', title: messages.commands.syncUserStocks },
+            { id: 'stockmon.manualSync', title: messages.commands.manualSync }
         ];
 
         commands.forEach(cmd => {
@@ -302,106 +404,64 @@ export async function activate(context: vscode.ExtensionContext) {
 
             const password = await vscode.window.showInputBox({
                 prompt: messages.auth.password,
-                password: true,
-                placeHolder: messages.auth.password
+                placeHolder: messages.auth.password,
+                password: true
             });
 
             if (!password) {
                 return;
             }
 
-            logger.info(LogCategory.EXTENSION, '=== Login Process Started ===');
-            logger.info(LogCategory.EXTENSION, `Attempting login for user: ${username}`);
-            
-            const token = await useSessionStore.getState().login(username, password, context);
-            
-            if (token) {
-                logger.info(LogCategory.EXTENSION, 'Login successful, got token');
-                vscode.window.showInformationMessage(messages.auth.loginSuccess);
-                
-                // 驗證登入狀態
-                const sessionStore = useSessionStore.getState();
-                logger.log(LogCategory.EXTENSION, '=== Verifying Login State ===');
-                logger.log(LogCategory.EXTENSION, `Auth token present: ${!!sessionStore.authToken}`);
-                logger.log(LogCategory.EXTENSION, `Session info: ${JSON.stringify(sessionStore.sessionInfo)}`);
-                logger.log(LogCategory.EXTENSION, `Is authenticated: ${sessionStore.isAuthenticated}`);
-
-                // 確保 session 已初始化
-                const sessionInfo = await sessionStore.initSession(sessionStore.clientUuid, token);
-                logger.log(LogCategory.EXTENSION, `Session initialized: ${JSON.stringify(sessionInfo)}`);
-                
-                // 同步用戶股票
-                logger.log(LogCategory.EXTENSION, 'Syncing user stocks...');
-                await useStockDataStore.getState().syncUserStocksFromServer();
-                
-                // 重新連接 WebSocket
-                logger.log(LogCategory.EXTENSION, 'Reconnecting WebSocket...');
-                wsStore.disconnect();
-                wsStore.connect(logger);
-
-                // 等待 WebSocket 連接成功
-                logger.log(LogCategory.EXTENSION, 'Waiting for WebSocket connection...');
-                await new Promise<void>((resolve) => {
-                    const unsubscribe = useWebSocketStore.subscribe((state) => {
-                        if (state.wsState === 'CONNECTED') {
-                            logger.log(LogCategory.EXTENSION, 'WebSocket connected successfully');
-                            unsubscribe();
-                            resolve();
-                        }
-                    });
-                });
-
-                // 重新訂閱所有股票
-                logger.log(LogCategory.EXTENSION, 'Resubscribing to stocks...');
-                await useStockDataStore.getState().subscribeToAllStocks();
-                
-                // 啟動自動同步
-                logger.log(LogCategory.EXTENSION, 'Starting auto sync...');
-                useStockDataStore.getState().startAutoSync();
-                
-                // 最後再次驗證狀態
-                const finalState = useSessionStore.getState();
-                logger.log(LogCategory.EXTENSION, '=== Final State After Login ===');
-                logger.log(LogCategory.EXTENSION, `Final auth token present: ${!!finalState.authToken}`);
-                logger.log(LogCategory.EXTENSION, `Final session info: ${JSON.stringify(finalState.sessionInfo)}`);
-                logger.log(LogCategory.EXTENSION, `Final authentication state: ${finalState.isAuthenticated}`);
-            } else {
-                logger.log(LogCategory.EXTENSION, 'Login failed: No token received');
-                vscode.window.showErrorMessage(messages.auth.loginFailed);
-            }
+            vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: messages.auth.loggingIn,
+                cancellable: false
+            }, async (progress) => {
+                try {
+                    const token = await useSessionStore.getState().login(username, password, context);
+                    
+                    // 登入成功後，開始同步
+                    logger.info(LogCategory.EXTENSION, 'Login successful, starting sync');
+                    await useStockDataStore.getState().syncUserStocksFromServer();
+                    useStockDataStore.getState().startAutoSync();
+                    
+                    vscode.window.showInformationMessage(messages.auth.loginSuccess);
+                    return token;
+                } catch (error) {
+                    logger.logError(LogCategory.EXTENSION, error, 'Login failed');
+                    vscode.window.showErrorMessage(messages.auth.loginFailed);
+                    throw error;
+                }
+            });
         } catch (error) {
-            logger.logError(LogCategory.EXTENSION, error, 'Login error');
-            vscode.window.showErrorMessage(`Login failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            logger.logError(LogCategory.EXTENSION, error, 'Login command error');
         }
     });
 
     // 修改登出命令
     let logoutCommand = vscode.commands.registerCommand('stockmon.logout', async () => {
         try {
-            await useSessionStore.getState().logout(context);
-            vscode.window.showInformationMessage(messages.auth.logoutSuccess);
-            
-            // 登出成功後重新連接 WebSocket
-            wsStore.disconnect();
-            wsStore.connect(logger);
-
-            // 等待 WebSocket 連接成功後重新訂閱所有股票
-            await new Promise<void>((resolve) => {
-                const unsubscribe = useWebSocketStore.subscribe((state) => {
-                    if (state.wsState === 'CONNECTED') {
-                        unsubscribe();
-                        resolve();
-                    }
-                });
+            vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: messages.auth.loggingOut,
+                cancellable: false
+            }, async (progress) => {
+                try {
+                    // 先停止同步
+                    logger.info(LogCategory.EXTENSION, 'Stopping sync before logout');
+                    useStockDataStore.getState().stopAutoSync();
+                    
+                    // 然後登出
+                    await useSessionStore.getState().logout(context);
+                    vscode.window.showInformationMessage(messages.auth.logoutSuccess);
+                } catch (error) {
+                    logger.logError(LogCategory.EXTENSION, error, 'Logout failed');
+                    vscode.window.showErrorMessage(messages.auth.logoutFailed);
+                    throw error;
+                }
             });
-
-            // 重新訂閱所有股票
-            await useStockDataStore.getState().subscribeToAllStocks();
-            
-            // 停止自動同步
-            useStockDataStore.getState().stopAutoSync();
         } catch (error) {
-            vscode.window.showErrorMessage(messages.auth.logoutFailed);
+            logger.logError(LogCategory.EXTENSION, error, 'Logout command error');
         }
     });
 
@@ -913,12 +973,45 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('stockmon.syncUserStocks', async () => {
             try {
-                logger.info(LogCategory.SYNC, 'Manual user stocks sync started...');
                 await useStockDataStore.getState().syncUserStocksFromServer();
-                vscode.window.showInformationMessage('Stocks synchronized successfully');
+                vscode.window.showInformationMessage(messages.commands.syncUserStocks);
             } catch (error) {
-                logger.logError(LogCategory.SYNC, error, 'Error syncing user stocks');
-                vscode.window.showErrorMessage(`Failed to sync stocks: ${error}`);
+                vscode.window.showErrorMessage(`Failed to sync user stocks: ${error}`);
+            }
+        })
+    );
+
+    // 註冊手動同步命令
+    context.subscriptions.push(
+        vscode.commands.registerCommand('stockmon.manualSync', async () => {
+            const logger = LoggerService.getInstance();
+            const sessionStore = useSessionStore.getState();
+            
+            try {
+                // 檢查用戶是否已登入
+                if (!sessionStore.isAuthenticated || !sessionStore.authToken) {
+                    logger.log(LogCategory.SYNC, 'User not authenticated, cannot sync');
+                    vscode.window.showWarningMessage(messages.sync.notAuthenticated);
+                    return;
+                }
+                
+                vscode.window.withProgress({
+                    location: vscode.ProgressLocation.Notification,
+                    title: messages.sync.syncing,
+                    cancellable: false
+                }, async (progress) => {
+                    try {
+                        // 執行同步
+                        logger.log(LogCategory.SYNC, 'Manual sync triggered');
+                        await useStockDataStore.getState().checkAndSync();
+                        vscode.window.showInformationMessage(messages.sync.syncComplete);
+                    } catch (error) {
+                        logger.logError(LogCategory.SYNC, error, 'Manual sync failed');
+                        vscode.window.showErrorMessage(`${messages.sync.syncFailed}: ${error instanceof Error ? error.message : '未知錯誤'}`);
+                    }
+                });
+            } catch (error) {
+                logger.logError(LogCategory.SYNC, error, 'Manual sync command error');
             }
         })
     );
@@ -984,37 +1077,5 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-    // WebSocket cleanup is handled by the subscription above
-}
-
-// 計算總損益並更新狀態欄
-function updateStatusBarProfit(statusBarItem: vscode.StatusBarItem) {
-    // 從 stockDataStore 獲取總損益數據
-    const { totalProfit, hasPositions } = useStockDataStore.getState().calculateTotalProfit();
-
-    // 保留當前的圖示
-    const iconMatch = statusBarItem.text.match(/\$\(.*?\)/);
-    const icon = iconMatch ? iconMatch[0] : '$(radio-tower)';
-
-    // 根據是否有持倉顯示不同內容
-    if (hasPositions) {
-        // 格式化損益數字，四捨五入到整數
-        const formattedProfit = Math.round(totalProfit).toLocaleString();
-        
-        // 依照台灣股市慣例設置顏色：盈利為紅色，虧損為綠色
-        if (totalProfit > 0) {
-            statusBarItem.color = new vscode.ThemeColor('charts.red');
-            statusBarItem.text = `${icon} +${formattedProfit}`;
-        } else if (totalProfit < 0) {
-            statusBarItem.color = new vscode.ThemeColor('charts.green');
-            statusBarItem.text = `${icon} ${formattedProfit}`;
-        } else {
-            statusBarItem.color = undefined;
-            statusBarItem.text = `${icon} ${formattedProfit}`;
-        }
-    } else {
-        // 沒有持倉時顯示空值
-        statusBarItem.color = undefined;
-        statusBarItem.text = `${icon}`;
-    }
+    LoggerService.getInstance().log(LogCategory.EXTENSION, 'Extension deactivated');
 }

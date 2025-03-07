@@ -15,6 +15,22 @@ const App: React.FC = () => {
     const [selectedStock, setSelectedStock] = useState<StockInventory | null>(null);
     const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
 
+    // 更新 sessionInfo 的處理函數
+    const updateSessionInfo = (newSessionInfo: any) => {
+        if (!newSessionInfo) {
+            setSessionInfo({ is_authenticated: false });
+            return;
+        }
+        
+        // 確保 sessionInfo 格式正確
+        setSessionInfo({
+            user: newSessionInfo.user || '',
+            is_authenticated: Boolean(newSessionInfo.is_authenticated)
+        });
+        
+        console.log('Session info updated:', newSessionInfo);
+    };
+
     useEffect(() => {
         // Register message handler
         registerMessageHandler((message) => {
@@ -27,6 +43,9 @@ const App: React.FC = () => {
                     if (message.twseIndex) {
                         setTwseIndex(message.twseIndex);
                     }
+                    if (message.sessionInfo) {
+                        updateSessionInfo(message.sessionInfo);
+                    }
                     break;
                 case 'updateStocks':
                     setStocks(message.stocks || []);
@@ -36,6 +55,9 @@ const App: React.FC = () => {
                     break;
                 case 'updateWebSocketState':
                     setWsState(message.state);
+                    break;
+                case 'updateSessionInfo':
+                    updateSessionInfo(message.sessionInfo);
                     break;
                 case 'showStockDetail':
                     if (message.symbol) {

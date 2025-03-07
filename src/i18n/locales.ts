@@ -75,6 +75,8 @@ export interface LocaleMessages {
         logoutFailed: string;
         loggedInAs: string;
         logoutConfirmation: string;
+        loggingIn: string;
+        loggingOut: string;
     };
     details: {
         title: string;
@@ -98,6 +100,7 @@ export interface LocaleMessages {
         clearAllSubscriptions: string;
         showSessionInfo: string;
         syncUserStocks: string;
+        manualSync: string;
     };
     config: {
     };
@@ -110,6 +113,12 @@ export interface LocaleMessages {
         cancel: string;
         yes: string;
         no: string;
+    };
+    sync: {
+        notAuthenticated: string;
+        syncing: string;
+        syncComplete: string;
+        syncFailed: string;
     };
 }
 
@@ -189,7 +198,9 @@ const zhTW: LocaleMessages = {
         logoutSuccess: '已登出',
         logoutFailed: '登出失敗，請稍後再試。',
         loggedInAs: '已登入為',
-        logoutConfirmation: '確定要登出嗎？'
+        logoutConfirmation: '確定要登出嗎？',
+        loggingIn: '正在登入...',
+        loggingOut: '正在登出...'
     },
     details: {
         title: '股票投資組合明細',
@@ -213,6 +224,7 @@ const zhTW: LocaleMessages = {
         clearAllSubscriptions: '清除所有訂閱',
         showSessionInfo: '顯示會話資訊',
         syncUserStocks: '從伺服器同步用戶股票',
+        manualSync: '手動同步'
     },
     config: {
     },
@@ -225,6 +237,12 @@ const zhTW: LocaleMessages = {
         cancel: '取消',
         yes: '是',
         no: '否'
+    },
+    sync: {
+        notAuthenticated: '請先登入以同步您的股票資料',
+        syncing: '正在同步股票資料...',
+        syncComplete: '股票資料同步完成',
+        syncFailed: '同步失敗'
     }
 };
 
@@ -304,7 +322,9 @@ const enUS: LocaleMessages = {
         logoutSuccess: 'Logged out successfully',
         logoutFailed: 'Logout failed, please try again later.',
         loggedInAs: 'Logged in as',
-        logoutConfirmation: 'Are you sure you want to log out?'
+        logoutConfirmation: 'Are you sure you want to log out?',
+        loggingIn: 'Logging in...',
+        loggingOut: 'Logging out...'
     },
     details: {
         title: 'Stock Portfolio Details',
@@ -328,6 +348,7 @@ const enUS: LocaleMessages = {
         clearAllSubscriptions: 'Clear All Subscriptions',
         showSessionInfo: 'Show Session Info',
         syncUserStocks: 'Sync User Stocks from Server',
+        manualSync: 'Manual Sync'
     },
     config: {
     },
@@ -340,6 +361,12 @@ const enUS: LocaleMessages = {
         cancel: 'Cancel',
         yes: 'Yes',
         no: 'No'
+    },
+    sync: {
+        notAuthenticated: 'Please login to sync your stock data',
+        syncing: 'Syncing stock data...',
+        syncComplete: 'Stock data sync completed',
+        syncFailed: 'Sync failed'
     }
 };
 

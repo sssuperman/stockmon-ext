@@ -46,7 +46,7 @@ export interface StockInventory {
     exchange: string;
     market: string;
     alerts: PriceAlert[];
-    isSubscribed?: boolean;
+    isSubscribed: boolean;
     cost?: StockCostData;
     profit?: number;
     profitPercent?: number;
@@ -68,6 +68,11 @@ export interface StockInventory {
     outVolume?: number;     // 外盤成交量
     neutralVolume?: number; // 中性盤成交量
     previousVolume?: number; // 前一交易日成交量
+    
+    // 添加同步相關欄位
+    syncVersion?: number;
+    lastSyncTimestamp?: number;
+    clientUuid?: string;
 }
 
 export interface StockSearchResult {

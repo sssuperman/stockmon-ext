@@ -23,6 +23,7 @@ interface WebSocketStoreState {
   reconnectInterval: number;
   extendedReconnectInterval: number;
   reconnectTimeoutId?: NodeJS.Timeout;
+  pingIntervalId?: NodeJS.Timeout;
   waitForMessage: <T = any>(
     predicate: (message: any) => boolean,
     timeout?: number
@@ -44,6 +45,7 @@ export const useWebSocketStore = create<WebSocketStoreState>((set, get) => ({
   reconnectInterval: 3000,
   extendedReconnectInterval: 10000,
   reconnectTimeoutId: undefined,
+  pingIntervalId: undefined,
 
   connect: (loggerOrOutputChannel?: LoggerService | OutputChannel) => {
     const { socket, reconnectAttempts } = get();
@@ -117,18 +119,27 @@ export const useWebSocketStore = create<WebSocketStoreState>((set, get) => ({
 
         newSocket.onopen = () => {
           logger.info(LogCategory.WEBSOCKET, 'WebSocket connection established');
-          if (authToken) {
-            logger.log(LogCategory.WEBSOCKET, 'Sending authentication message');
-            const authMessage = {
-              type: 'authenticate',
-              token: authToken
-            };
-            newSocket.send(JSON.stringify(authMessage));
+          
+          // 清除舊的ping定時器
+          if (get().pingIntervalId) {
+            clearInterval(get().pingIntervalId);
           }
+          
+          // 設置新的ping定時器
+          const pingIntervalId = setInterval(() => {
+            const { socket } = get();
+            if (socket?.readyState === WebSocket.OPEN) {
+              // 使用action欄位發送ping訊息
+              get().sendMessage({ action: 'ping' });
+              logger.debug(LogCategory.WEBSOCKET, 'Sent ping message');
+            }
+          }, config.WS_CONFIG.heartbeatInterval);
+          
           set({
             wsState: WebSocketState.CONNECTED,
             socket: newSocket,
-            reconnectAttempts: 0
+            reconnectAttempts: 0,
+            pingIntervalId
           });
         };
 
@@ -285,6 +296,12 @@ export const useWebSocketStore = create<WebSocketStoreState>((set, get) => ({
     if (get().reconnectTimeoutId) {
       clearTimeout(get().reconnectTimeoutId);
       set({ reconnectTimeoutId: undefined });
+    }
+    
+    // 清除ping定時器
+    if (get().pingIntervalId) {
+      clearInterval(get().pingIntervalId);
+      set({ pingIntervalId: undefined });
     }
   },
 

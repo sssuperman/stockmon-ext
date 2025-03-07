@@ -1,0 +1,74 @@
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    background-color: var(--vscode-editor-background);
+    border-bottom: 1px solid var(--vscode-panel-border);
+    height: 40px;
+}
+
+.header-left, .header-right {
+    display: flex;
+    align-items: center;
+}
+
+/* 連接狀態樣式 */
+.status-badge {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    margin-right: 8px;
+}
+
+.status-icon {
+    margin-right: 4px;
+    font-size: 10px;
+}
+
+.status-badge.connected {
+    background-color: rgba(0, 128, 0, 0.1);
+    color: #4caf50;
+}
+
+.status-badge.connecting {
+    background-color: rgba(255, 152, 0, 0.1);
+    color: #ff9800;
+}
+
+.status-badge.offline {
+    background-color: rgba(244, 67, 54, 0.1);
+    color: #f44336;
+}
+
+/* 登入按鈕樣式 */
+.auth-button {
+    display: flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    transition: background-color 0.2s;
+}
+
+.auth-icon {
+    margin-right: 6px;
+    font-size: 14px;
+}
+
+/* 響應式設計 */
+@media (max-width: 480px) {
+    .status-text, .auth-text {
+        display: none;
+    }
+    
+    .status-icon, .auth-icon {
+        margin-right: 0;
+    }
+    
+    .header {
+        padding: 8px;
+    }
+} 
