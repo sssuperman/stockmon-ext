@@ -77,6 +77,7 @@ export interface LocaleMessages {
         logoutConfirmation: string;
         loggingIn: string;
         loggingOut: string;
+        alreadyLoggedIn: string;
     };
     details: {
         title: string;
@@ -193,14 +194,15 @@ const zhTW: LocaleMessages = {
         logout: '登出',
         username: '使用者名稱',
         password: '密碼',
-        loginSuccess: '登入成功！',
-        loginFailed: '登入失敗，請檢查使用者名稱和密碼。',
-        logoutSuccess: '已登出',
-        logoutFailed: '登出失敗，請稍後再試。',
+        loginSuccess: '登入成功',
+        loginFailed: '登入失敗',
+        logoutSuccess: '登出成功',
+        logoutFailed: '登出失敗',
         loggedInAs: '已登入為',
         logoutConfirmation: '確定要登出嗎？',
-        loggingIn: '正在登入...',
-        loggingOut: '正在登出...'
+        loggingIn: '登入中...',
+        loggingOut: '登出中...',
+        alreadyLoggedIn: '您已經登入',
     },
     details: {
         title: '股票投資組合明細',
@@ -317,14 +319,15 @@ const enUS: LocaleMessages = {
         logout: 'Logout',
         username: 'Username',
         password: 'Password',
-        loginSuccess: 'Login successful!',
-        loginFailed: 'Login failed, please check your username and password.',
-        logoutSuccess: 'Logged out successfully',
-        logoutFailed: 'Logout failed, please try again later.',
+        loginSuccess: 'Login successful',
+        loginFailed: 'Login failed',
+        logoutSuccess: 'Logout successful',
+        logoutFailed: 'Logout failed',
         loggedInAs: 'Logged in as',
-        logoutConfirmation: 'Are you sure you want to log out?',
+        logoutConfirmation: 'Are you sure you want to logout?',
         loggingIn: 'Logging in...',
-        loggingOut: 'Logging out...'
+        loggingOut: 'Logging out...',
+        alreadyLoggedIn: 'You are already logged in',
     },
     details: {
         title: 'Stock Portfolio Details',

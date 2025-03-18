@@ -1,0 +1,78 @@
+.indice-bar-container {
+  margin: 0 0 10px 0;
+  border-radius: 4px;
+  background-color: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border);
+}
+
+.indice-bar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.indice-bar-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--vscode-foreground);
+}
+
+.indice-toggle-button {
+  padding: 2px 8px;
+  min-width: auto;
+  height: auto;
+}
+
+.indice-bar-content {
+  padding: 8px 12px;
+}
+
+.indice-no-data {
+  text-align: center;
+  font-size: 13px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.indice-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.indice-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.indice-name {
+  color: var(--vscode-foreground);
+}
+
+.indice-value {
+  color: var(--vscode-foreground);
+}
+
+.profit-up {
+  color: #4caf50;
+}
+
+.profit-down {
+  color: #f44336;
+}
+
+.flash-update {
+  animation: flash 1s;
+}
+
+@keyframes flash {
+  0% {
+    background-color: rgba(76, 175, 80, 0.2);
+  }
+  100% {
+    background-color: transparent;
+  }
+} 

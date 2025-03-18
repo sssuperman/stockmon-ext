@@ -3,6 +3,7 @@ import { WebSocketState } from '../types';
 import { config } from '../config';
 import { StockInventory } from '../types';
 import { useStockDataStore } from './stockDataStore';
+import { useIndiceDataStore } from './indiceDataStore';
 import { WebSocket } from 'ws';
 import { OutputChannel } from 'vscode';
 import { useSessionStore } from './sessionStore';
@@ -83,6 +84,8 @@ export const useWebSocketStore = create<WebSocketStoreState>((set, get) => ({
       logger.log(LogCategory.WEBSOCKET, '=== WebSocket Connection Setup ===');
       logger.log(LogCategory.WEBSOCKET, `Connecting with clientUuid: ${clientUuid}`);
       logger.log(LogCategory.WEBSOCKET, `Auth token present: ${!!authToken}`);
+      logger.log(LogCategory.WEBSOCKET, `Session authenticated: ${sessionStore.isAuthenticated}`);
+      logger.log(LogCategory.WEBSOCKET, `Session info: ${JSON.stringify(sessionStore.sessionInfo)}`);
       logger.log(LogCategory.WEBSOCKET, `Current config: WS_PROTOCOL=${config.WS_PROTOCOL}, WS_HOST=${config.WS_HOST}, WS_PORT=${config.WS_PORT}, WS_PATH=${config.WS_PATH}`);
       
       // 檢查配置是否有效
@@ -119,6 +122,12 @@ export const useWebSocketStore = create<WebSocketStoreState>((set, get) => ({
 
         newSocket.onopen = () => {
           logger.info(LogCategory.WEBSOCKET, 'WebSocket connection established');
+          
+          // 连接成功后，记录当前认证状态
+          const sessionStore = useSessionStore.getState();
+          logger.info(LogCategory.WEBSOCKET, `=== WebSocket Authentication Check ===`);
+          logger.info(LogCategory.WEBSOCKET, `WebSocket connected with auth state: ${sessionStore.isAuthenticated}`);
+          logger.info(LogCategory.WEBSOCKET, `Auth token present: ${!!sessionStore.authToken}`);
           
           // 清除舊的ping定時器
           if (get().pingIntervalId) {
@@ -204,6 +213,22 @@ export const useWebSocketStore = create<WebSocketStoreState>((set, get) => ({
                   useStockDataStore.getState().updateStock(stockData);
                 }
                 logger.debug(LogCategory.WEBSOCKET, `WebSocketStore Updated data for ${stockData.symbol}`);
+                break;
+              case 'indice_update':
+                logger.debug(LogCategory.INDICE_DATA, `Received indice update for ${message.symbol}: ${message.index}`);
+                // 使用新的indiceDataStore處理指數更新，增加所有可用欄位
+                useIndiceDataStore.getState().updateIndice({
+                  symbol: message.symbol,
+                  name: message.name,
+                  index: message.index,
+                  exchange: message.exchange,
+                  time: message.time,
+                  previousClose: message.previous_close,
+                  change: message.change,
+                  changePercent: message.change_percent,
+                  date: message.date,
+                  isRealtime: true
+                });
                 break;
               case 'connection_established':
                 set({ wsState: WebSocketState.CONNECTED });

@@ -176,13 +176,30 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
         await context.globalState.update('sessionInfo', sessionInfo);
         logger.log(LogCategory.SESSION, 'Session info updated in global state');
         
-        // 然後更新 store state
-        set({ sessionInfo });
-        logger.log(LogCategory.SESSION, 'Session info updated in store state');
+        // 然後更新 store state，同時更新 isAuthenticated 狀態
+        set({ 
+            sessionInfo,
+            isAuthenticated: sessionInfo?.is_authenticated || false
+        });
+        logger.log(LogCategory.SESSION, `Session info updated in store state, isAuthenticated set to: ${sessionInfo?.is_authenticated || false}`);
         
-        // 驗證更新
+        // 驗證是否正確設置認證狀態
+        logger.log(LogCategory.SESSION, `=== AUTHENTICATION STATE CHECK ===`);
+        logger.log(LogCategory.SESSION, `Session info: ${JSON.stringify(sessionInfo)}`);
+        logger.log(LogCategory.SESSION, `is_authenticated in session: ${sessionInfo?.is_authenticated}`);
+        
+        // 獲取當前狀態，確認 isAuthenticated 設置正確
+        const currentState = get();
+        logger.log(LogCategory.SESSION, `Current isAuthenticated value: ${currentState.isAuthenticated}`);
+        logger.log(LogCategory.SESSION, `Auth token present: ${!!currentState.authToken}`);
+        
+        // 檢查全局狀態是否一致
         const savedSession = await context.globalState.get<SessionInfo>('sessionInfo');
-        logger.log(LogCategory.SESSION, `Verified saved session: ${JSON.stringify(savedSession)}`);
+        const savedToken = await context.globalState.get<string>('authToken');
+        logger.log(LogCategory.SESSION, `Global state - session.is_authenticated: ${savedSession?.is_authenticated}`);
+        logger.log(LogCategory.SESSION, `Global state - token present: ${!!savedToken}`);
+        logger.log(LogCategory.SESSION, `=== END AUTHENTICATION CHECK ===`);
+        
         logger.log(LogCategory.SESSION, 'Session info updated successfully');
     } catch (error) {
         logger.logError(LogCategory.SESSION, error, 'Failed to set session info');
@@ -229,12 +246,35 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
         logger.log(LogCategory.SESSION, `Found authToken: ${authToken ? 'present' : 'null'}`);
         logger.log(LogCategory.SESSION, `Found clientUuid: ${clientUuid}`);
 
+        // 檢查 token 是否有效
+        let isAuthenticated = sessionInfo?.is_authenticated || false;
+        
+        if (authToken) {
+            try {
+                // 檢查 token 是否過期
+                const tokenExpired = isTokenExpired(authToken);
+                if (tokenExpired) {
+                    logger.warning(LogCategory.SESSION, 'Auth token is expired, setting isAuthenticated to false');
+                    isAuthenticated = false;
+                } else {
+                    logger.log(LogCategory.SESSION, 'Auth token is valid');
+                }
+            } catch (error) {
+                logger.warning(LogCategory.SESSION, `Failed to check token expiration: ${error}, assuming token is invalid`);
+                isAuthenticated = false;
+            }
+        } else {
+            // 沒有 token，設置為未認證
+            logger.warning(LogCategory.SESSION, 'No auth token found, setting isAuthenticated to false');
+            isAuthenticated = false;
+        }
+
         // 直接設置狀態
         set({
             sessionInfo,
             authToken,
             clientUuid,
-            isAuthenticated: sessionInfo?.is_authenticated || false
+            isAuthenticated
         });
 
         // 驗證設置後的狀態

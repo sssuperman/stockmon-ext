@@ -73,6 +73,8 @@ export interface StockInventory {
     syncVersion?: number;
     lastSyncTimestamp?: number;
     clientUuid?: string;
+    hasConflict?: boolean;
+    conflictData?: ConflictData;
 }
 
 export interface StockSearchResult {
@@ -166,11 +168,14 @@ export interface ServerStockData {
 }
 
 export interface SyncQueueItem {
-    type: 'ADD' | 'UPDATE' | 'DELETE';
+    action: 'add' | 'update' | 'delete';
     symbol: string;
-    data?: StockCostData;
+    quantity?: number;
+    averageCost?: number;
     timestamp: number;
-} 
+    version?: number;
+    last_sync_timestamp?: number;
+}
 
 export enum WebSocketState {
     CLOSED = 'CLOSED',
@@ -178,4 +183,76 @@ export enum WebSocketState {
     CONNECTED = 'CONNECTED',
     RECONNECTING = 'RECONNECTING',
     ERROR = 'ERROR'
+}
+
+// 添加同步相關的類型定義
+export interface SyncStatus {
+  status: string;
+  last_sync_time: string | null;
+  pending_changes: number;
+  client_uuid: string | null;
+  recent_actions: SyncAction[];
+}
+
+export interface SyncAction {
+  action: string;
+  status: string;
+  timestamp: string;
+  details: any;
+}
+
+export interface ConflictData {
+  client_version: {
+    version: number;
+    quantity?: number;
+    average_cost?: number;
+    last_sync_timestamp: number;
+    client_uuid: string;
+  };
+  server_version: {
+    version: number;
+    quantity: number;
+    average_cost: number | null;
+    last_sync_timestamp: number;
+    client_uuid: string;
+  };
+}
+
+export interface UserStockResponse {
+  stock_symbol: string;
+  stock_name: string;
+  quantity: number;
+  average_cost: number | null;
+  created_at: string;
+  updated_at: string;
+  is_cost_set: boolean;
+  is_quantity_set: boolean;
+  version: number;
+  last_sync_timestamp: number;
+  client_uuid: string | null;
+  has_conflict: boolean;
+  conflict_resolution?: string;
+  conflict_data?: ConflictData;
+}
+
+export interface ConflictResolutionData {
+  symbol: string;
+  resolution_method: 'use_server' | 'use_client' | 'merge';
+  quantity?: number;
+  average_cost?: number;
+  client_uuid?: string;
+}
+
+export interface IndiceData {
+  symbol: string;
+  name: string;
+  index: number;
+  change?: number;
+  changePercent?: number;
+  exchange: string;
+  time: number;
+  formattedTime?: string;
+  previousClose?: number;
+  isRealtime: boolean;
+  date?: string;
 }

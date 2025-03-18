@@ -1,23 +1,32 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { VSCodeButton, VSCodeDivider } from '@vscode/webview-ui-toolkit/react';
-import { StockInventory } from '../../../src/types';
+import { StockInventory, IndiceData } from '../../../src/types';
 import { vscode } from '../utilities/vscode';
 import './StockList.css';
 import { BsGrid3X3GapFill, BsTable, BsPlusCircle, BsThreeDotsVertical } from 'react-icons/bs';
+import { IndiceBar } from './IndiceBar';
 
 interface StockListProps {
     stocks: StockInventory[];
     onDelete: (symbol: string) => void;
     twseIndex: StockInventory | null;
     onSelectStock: (stock: StockInventory) => void;
+    indices?: Record<string, IndiceData>;
 }
 
-export const StockList: React.FC<StockListProps> = ({ stocks, onDelete, twseIndex, onSelectStock }) => {
+export const StockList: React.FC<StockListProps> = ({ 
+    stocks, 
+    onDelete, 
+    twseIndex, 
+    onSelectStock,
+    indices = {} 
+}) => {
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
     const prevStocksRef = useRef(stocks);
     const prevIndexRef = useRef(twseIndex);
+    const prevIndicesRef = useRef<Record<string, IndiceData>>({});
     const [updatedStocks, setUpdatedStocks] = useState<Set<string>>(new Set());
-    const [updatedIndex, setUpdatedIndex] = useState<boolean>(false);
+    const [updatedIndices, setUpdatedIndices] = useState<Record<string, boolean>>({});
     const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
 
     useEffect(() => {
@@ -30,13 +39,51 @@ export const StockList: React.FC<StockListProps> = ({ stocks, onDelete, twseInde
             }
         });
 
-        // 檢查指數是否更新
+        // 檢查指數是否更新（只在加权指数实际更新时标记）
         if (twseIndex && prevIndexRef.current?.price !== twseIndex.price) {
-            setUpdatedIndex(true);
+            setUpdatedIndices(prev => ({
+                ...prev,
+                [twseIndex.symbol]: true
+            }));
+            
+            // 一段时间后清除更新标记
             setTimeout(() => {
-                setUpdatedIndex(false);
+                setUpdatedIndices(prev => {
+                    const newState = {...prev};
+                    delete newState[twseIndex.symbol];
+                    return newState;
+                });
             }, 1000);
         }
+        
+        // 检查其他指数是否更新
+        Object.entries(indices).forEach(([symbol, indice]) => {
+            const prevIndice = prevIndicesRef.current[symbol];
+            if (!prevIndice || prevIndice.index !== indice.index) {
+                setUpdatedIndices(prev => ({
+                    ...prev,
+                    [symbol]: true
+                }));
+                
+                // 一段时间后清除更新标记
+                setTimeout(() => {
+                    setUpdatedIndices(prev => {
+                        const newState = {...prev};
+                        delete newState[symbol];
+                        return newState;
+                    });
+                }, 1000);
+            }
+        });
+        
+        // 更新前一次的指数值
+        prevIndicesRef.current = {...indices};
+        
+        // 更新前一次的加权指数值
+        prevIndexRef.current = twseIndex;
+        
+        // 更新前一次的股票值
+        prevStocksRef.current = stocks;
 
         if (newUpdates.size > 0) {
             setUpdatedStocks(newUpdates);
@@ -44,10 +91,7 @@ export const StockList: React.FC<StockListProps> = ({ stocks, onDelete, twseInde
                 setUpdatedStocks(new Set());
             }, 1000);
         }
-
-        prevStocksRef.current = stocks;
-        prevIndexRef.current = twseIndex;
-    }, [stocks, twseIndex]);
+    }, [stocks, twseIndex, indices]);
 
     // 添加調試信息輸出
     useEffect(() => {
@@ -326,30 +370,26 @@ export const StockList: React.FC<StockListProps> = ({ stocks, onDelete, twseInde
     };
 
     // 渲染台股指數的組件
-    const IndexCard = () => {
-        if (!twseIndex) {
-            return null;
-        }
-
-        const price = typeof twseIndex.price === 'number' ? twseIndex.price : 0;
-        const change = typeof twseIndex.change === 'number' ? twseIndex.change : 0;
-        const changePercent = typeof twseIndex.changePercent === 'number' ? twseIndex.changePercent : 0;
-        const volume = typeof twseIndex.volume === 'number' ? twseIndex.volume : 0;
-        const open = typeof twseIndex.open === 'number' ? twseIndex.open : price;
-        const high = typeof twseIndex.high === 'number' ? twseIndex.high : price;
-        const low = typeof twseIndex.low === 'number' ? twseIndex.low : price;
+    const IndexCard = ({ stock, isUpdated, onStockClick }: { stock: StockInventory; isUpdated: boolean; onStockClick: (stock: StockInventory) => void }) => {
+        const price = typeof stock.price === 'number' ? stock.price : 0;
+        const change = typeof stock.change === 'number' ? stock.change : 0;
+        const changePercent = typeof stock.changePercent === 'number' ? stock.changePercent : 0;
+        const volume = typeof stock.volume === 'number' ? stock.volume : 0;
+        const open = typeof stock.open === 'number' ? stock.open : price;
+        const high = typeof stock.high === 'number' ? stock.high : price;
+        const low = typeof stock.low === 'number' ? stock.low : price;
 
         return (
             <div 
-                className={`index-card ${updatedIndex ? 'flash-update' : ''}`}
-                onClick={() => handleStockClick(twseIndex)}
+                className={`index-card ${isUpdated ? 'flash-update' : ''}`}
+                onClick={() => onStockClick(stock)}
                 style={{ cursor: 'pointer' }}
             >
                 <div className="stock-header">
                     <div className="stock-info">
                         <div className="stock-title-row">
-                            <span className="stock-name">{twseIndex.name}</span>
-                            <span className="stock-symbol">{twseIndex.symbol}</span>
+                            <span className="stock-name">{stock.name}</span>
+                            <span className="stock-symbol">{stock.symbol}</span>
                         </div>
                     </div>
                     <div className="stock-price-row">
@@ -510,6 +550,9 @@ export const StockList: React.FC<StockListProps> = ({ stocks, onDelete, twseInde
 
     return (
         <div className="stock-container">
+            {/* 添加 IndiceBar 組件 */}
+            <IndiceBar indices={indices} />
+            
             <div className="view-mode-toggle">
                 <button 
                     className={`view-mode-button ${viewMode === 'card' ? 'active' : ''}`}
@@ -535,7 +578,14 @@ export const StockList: React.FC<StockListProps> = ({ stocks, onDelete, twseInde
             </div>
             
             <div className="index-section">
-                <IndexCard />
+                {/* 只显示TWSE加權指數 */}
+                {twseIndex && (
+                    <IndexCard 
+                        stock={twseIndex} 
+                        isUpdated={updatedIndices[twseIndex.symbol]} 
+                        onStockClick={handleStockClick} 
+                    />
+                )}
             </div>
             
             {/* 添加總體損益摘要區塊 */}

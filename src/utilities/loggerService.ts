@@ -158,5 +158,7 @@ export enum LogCategory {
     STOCK_DATA = 'StockData',
     SYNC = 'Sync',
     AUTH = 'Auth',
-    PORTFOLIO = 'Portfolio'
+    PORTFOLIO = 'Portfolio',
+    API = 'API',
+    INDICE_DATA = 'IndiceData'
 } 

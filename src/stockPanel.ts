@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { useWebSocketStore } from './store/websocketStore';
 import { useStockDataStore } from './store/stockDataStore';
+import { useIndiceDataStore } from './store/indiceDataStore';
 import { getNonce } from './utilities/getNonce';
 import { getUri } from './utilities/getUri';
 import { channel } from 'diagnostics_channel';
@@ -14,6 +15,7 @@ export class StockPanel {
     private readonly _panel: vscode.WebviewPanel;
     private _disposables: vscode.Disposable[] = [];
     private _unsubscribeStockStore?: () => void;
+    private _unsubscribeIndiceStore?: () => void;
 
     /**
      * 創建或顯示 StockPanel
@@ -81,7 +83,10 @@ export class StockPanel {
         const initialTwseIndex = useStockDataStore.getState().twseIndex ? 
             this._deepSanitizeData([useStockDataStore.getState().twseIndex])[0] : null;
         
-        StockPanel.logger.log(LogCategory.PANEL, `Sending initial data to webview - stocks: ${initialStocks.length}, has index: ${!!initialTwseIndex}`);
+        // 獲取指數數據
+        const initialIndices = useIndiceDataStore.getState().indices;
+        
+        StockPanel.logger.log(LogCategory.PANEL, `Sending initial data to webview - stocks: ${initialStocks.length}, has index: ${!!initialTwseIndex}, indices: ${Object.keys(initialIndices).length}`);
         
         // Get session info
         const sessionInfo = useSessionStore.getState().sessionInfo;
@@ -91,7 +96,8 @@ export class StockPanel {
             type: 'init',
             stocks: initialStocks,
             twseIndex: initialTwseIndex,
-            sessionInfo: sessionInfo
+            sessionInfo: sessionInfo,
+            indices: initialIndices
         });
 
         // 訂閱 store 更新 - 確保數據格式正確
@@ -108,6 +114,19 @@ export class StockPanel {
                         stocks: sanitizedStocks,
                         twseIndex: sanitizedIndex,
                         sessionInfo: useSessionStore.getState().sessionInfo
+                    });
+                }
+            }
+        );
+
+        // 訂閱指數數據更新
+        this._unsubscribeIndiceStore = useIndiceDataStore.subscribe(
+            (state) => {
+                if (this._panel.visible) {
+                    StockPanel.logger.debug(LogCategory.PANEL, `Indices updated - sending to panel - indices: ${Object.keys(state.indices).length}`);
+                    this._panel.webview.postMessage({
+                        type: 'updateIndices',
+                        indices: state.indices
                     });
                 }
             }
@@ -159,6 +178,15 @@ export class StockPanel {
                         this._panel.webview.postMessage({
                             type: 'updateSessionInfo',
                             sessionInfo: sessionState.sessionInfo
+                        });
+                        break;
+                    case 'getIndices':
+                        // 發送指數數據
+                        const indiceState = useIndiceDataStore.getState();
+                        StockPanel.logger.log(LogCategory.PANEL, `Responding to getIndices - sending ${Object.keys(indiceState.indices).length} indices`);
+                        this._panel.webview.postMessage({
+                            type: 'updateIndices',
+                            indices: indiceState.indices
                         });
                         break;
                     case 'addStock':
@@ -238,6 +266,7 @@ export class StockPanel {
         // 添加到待清理列表
         this._disposables.push({ dispose: () => {
             this._unsubscribeStockStore?.();
+            this._unsubscribeIndiceStore?.();
             unsubscribeWs();
             unsubscribeSessionStore();
         }});
@@ -378,6 +407,13 @@ export class StockPanel {
                     index: sanitizedIndex
                 });
             }
+            
+            // 發送指數數據
+            const indices = useIndiceDataStore.getState().indices;
+            this._panel.webview.postMessage({
+                type: 'updateIndices',
+                indices: indices
+            });
         }
     }
 

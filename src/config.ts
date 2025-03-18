@@ -80,7 +80,11 @@ export const urls = {
         search: `${config.API_BASE_URL}/stocks/search`,
         create: `${config.API_BASE_URL}/user/stocks`,
         update: (symbol: string) => `${config.API_BASE_URL}/user/stocks/symbol/${symbol}`,
-        delete: (symbol: string) => `${config.API_BASE_URL}/user/stocks/symbol/${symbol}`
+        delete: (symbol: string) => `${config.API_BASE_URL}/user/stocks/symbol/${symbol}`,
+        syncStatus: `${config.API_BASE_URL}/sync/status`,
+        conflicts: `${config.API_BASE_URL}/sync/conflicts`,
+        resolveConflict: `${config.API_BASE_URL}/sync/resolve-conflict`,
+        synchronize: `${config.API_BASE_URL}/sync/synchronize`
     },
     alerts: {
         list: `${config.API_BASE_URL}/user/alerts`,

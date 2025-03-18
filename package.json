@@ -2,7 +2,7 @@
   "name": "stockmon",
   "displayName": "stock-monitor",
   "description": "A stock monitoring and analysis platform. Stock Mate for Programmer",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "publisher": "stockmon",
   "license": "MIT",
   "icon": "./resources/icon.png",
@@ -25,7 +25,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onUri"
   ],
   "main": "./dist/extension.js",
   "l10n": "./l10n",
@@ -149,6 +150,36 @@
         "title": "Show Stock Detail",
         "category": "StockMon",
         "icon": "$(info)"
+      },
+      {
+        "command": "stockmon.handleUri",
+        "title": "Handle URI Directly",
+        "category": "StockMon"
+      },
+      {
+        "command": "stockmon.handleProvidedUri",
+        "title": "Handle Provided URI",
+        "category": "StockMon"
+      },
+      {
+        "command": "stockmon.showExtensionInfo",
+        "title": "Show Extension Info",
+        "category": "StockMon"
+      },
+      {
+        "command": "stockmon.testYourUri",
+        "title": "Test Your URI",
+        "category": "StockMon"
+      },
+      {
+        "command": "stockmon.checkSessionStore",
+        "title": "Check Session Store",
+        "category": "StockMon"
+      },
+      {
+        "command": "stockmon.testApiRequest",
+        "title": "Test API Request",
+        "category": "StockMon"
       }
     ],
     "viewsContainers": {
@@ -237,7 +268,13 @@
           "description": "設置 StockMon 擴展的日誌級別 (DEBUG 顯示所有日誌，INFO 顯示一般信息，WARNING 只顯示警告和錯誤，ERROR 只顯示錯誤)"
         }
       }
-    }
+    },
+    "uriHandlers": [
+      {
+        "uriHandler": "stockmon",
+        "pattern": "vscode://stockmon/*"
+      }
+    ]
   },
   "repository": {
     "type": "git",

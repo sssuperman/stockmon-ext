@@ -11,14 +11,28 @@ import axios from 'axios';
 import { isTokenExpired } from './utilities/tokenUtils';
 import { LoggerService, LogCategory, LogLevel } from './utilities/loggerService';
 import { PortfolioViewProvider } from './views/portfolioView';
+import { SessionInfo } from './types';
+import { urls } from './config';
+import { WebSocketState } from './types';
+import { config } from './config';
 
 export async function activate(context: vscode.ExtensionContext) {
+    // 添加啟動日誌
+    console.log('Activating stockmon extension...');
+    console.log('Extension ID:', context.extension.id);
+    console.log('URI Scheme:', vscode.env.uriScheme);
+    
     // Initialize the context manager first
     ExtensionContextManager.initialize(context);
 
     // Initialize and register the logger service
     const logger = LoggerService.getInstance();
     logger.register(context);
+    
+    // 記錄啟動信息
+    logger.info(LogCategory.EXTENSION, `Activating stockmon extension with ID: ${context.extension.id}`);
+    logger.info(LogCategory.EXTENSION, `URI Scheme: ${vscode.env.uriScheme}`);
+    logger.info(LogCategory.EXTENSION, `Activation events: ${context.extension.packageJSON.activationEvents.join(', ')}`);
     
     // 設置日誌級別 - 從設置中讀取
     const config = vscode.workspace.getConfiguration('stockmon');
@@ -32,6 +46,138 @@ export async function activate(context: vscode.ExtensionContext) {
     } else {
         logger.setLogLevel(LogLevel.INFO); // 默認為 INFO
         logger.info(LogCategory.EXTENSION, `Logger initialized with default level INFO`);
+    }
+
+    // 定義 URI 處理器類
+    class StockmonUriHandler implements vscode.UriHandler {
+        constructor(private readonly logger: LoggerService) {}
+
+        async handleUri(uri: vscode.Uri): Promise<void> {
+            console.log('URI handler triggered:', uri.toString());
+            this.logger.info(LogCategory.EXTENSION, `URI handler triggered with: ${uri.toString()}`);
+            this.logger.info(LogCategory.EXTENSION, `URI components - scheme: ${uri.scheme}, authority: ${uri.authority}, path: ${uri.path}, query: ${uri.query}`);
+            // 處理 URI
+            await processUri(uri);
+        }
+    }
+
+    // 註冊 URI 處理器
+    const stockmonUriHandler = new StockmonUriHandler(logger);
+    context.subscriptions.push(vscode.window.registerUriHandler(stockmonUriHandler));
+
+    // 處理 URI 的通用函數
+    async function processUri(uri: vscode.Uri): Promise<void> {
+        try {
+            console.log('Processing URI:', uri.toString());
+            logger.info(LogCategory.EXTENSION, `Processing URI: ${uri.toString()}`);
+            logger.info(LogCategory.EXTENSION, `URI details - scheme: ${uri.scheme}, authority: ${uri.authority}, path: ${uri.path}, query: ${uri.query}`);
+            
+            
+            // 檢查URI是否是我們期望的格式 - 放寬條件
+            if (uri.scheme === vscode.env.uriScheme) {
+                logger.info(LogCategory.EXTENSION, 'URI scheme is valid');
+                
+                // 解析查詢參數
+                const queryString = uri.query;
+                logger.info(LogCategory.EXTENSION, `Query string: ${queryString}`);
+                
+                if (!queryString) {
+                    logger.warning(LogCategory.EXTENSION, 'URI has no query string');
+                    vscode.window.showWarningMessage('URI 缺少查詢參數');
+                    return;
+                }
+                
+                const queryParams = new URLSearchParams(queryString);
+                const token = queryParams.get('token');
+                const userInfoStr = queryParams.get('user');
+                
+                logger.info(LogCategory.EXTENSION, `Parsed params - token exists: ${!!token}, userInfo exists: ${!!userInfoStr}`);
+                
+                if (token) {
+                    logger.info(LogCategory.EXTENSION, 'Token found in URI, processing auth callback');
+                    
+                    // 處理token
+                    await handleAuthCallback(token, userInfoStr);
+                } else {
+                    logger.warning(LogCategory.EXTENSION, 'Auth callback URI has no token');
+                    vscode.window.showWarningMessage('登入回調缺少必要的 token');
+                }
+            } else {
+                logger.warning(LogCategory.EXTENSION, `Invalid URI scheme: ${uri.scheme}, expected: ${vscode.env.uriScheme}`);
+                vscode.window.showWarningMessage(`無效的 URI 格式: ${uri.toString()}`);
+            }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            logger.logError(LogCategory.EXTENSION, error, 'Error processing URI');
+            vscode.window.showErrorMessage(`處理 URI 時發生錯誤: ${errorMessage}`);
+        }
+    }
+
+    // 處理認證回調的函數
+    async function handleAuthCallback(token: string, userInfoStr: string | null) {
+        try {
+            logger.log(LogCategory.AUTH, 'Handling auth callback');
+            
+            // 解析用戶信息
+            let userInfo = null;
+            if (userInfoStr) {
+                try {
+                    userInfo = JSON.parse(userInfoStr);
+                } catch (e) {
+                    logger.logError(LogCategory.AUTH, e, 'Failed to parse user info');
+                }
+            }
+            
+            // 設置認證狀態
+            await useSessionStore.getState().setAuthToken(token, context);
+            
+            // 更新會話信息，設置認證狀態為true
+            const clientUuid = useSessionStore.getState().clientUuid || useSessionStore.getState().getOrCreateUuid(context);
+            const sessionInfo = {
+                uuid: clientUuid,
+                is_authenticated: true,
+                channel_type: 'stock',
+                user: userInfo?.username || 'user'
+            };
+            await useSessionStore.getState().setSessionInfo(sessionInfo, context);
+            
+            // 檢查認證狀態
+            logger.log(LogCategory.AUTH, `Authentication status after callback: ${useSessionStore.getState().isAuthenticated}`);
+            
+            // 更新狀態欄
+            updateStatusBar();
+            
+            // 顯示成功訊息
+            vscode.window.showInformationMessage('登入成功！');
+            
+            // 開始自動同步
+            useStockDataStore.getState().startAutoSync();
+            
+            // 上傳本地股票資料到雲端
+            try {
+                await useStockDataStore.getState().uploadLocalStocksToServer();
+            } catch (error) {
+                logger.logError(LogCategory.SYNC, error, '上傳本地股票資料失敗');
+                // 不中斷登入流程，僅記錄錯誤
+            }
+            
+            // 顯示當前狀態
+            useSessionStore.getState().showSessionInfoAndAuthToken(logger);
+            
+            // 重新連接WebSocket，使用新的認證狀態
+            logger.log(LogCategory.WEBSOCKET, 'Reconnecting WebSocket with new authentication state');
+            const wsStore = useWebSocketStore.getState();
+            if (wsStore.wsState !== WebSocketState.CONNECTING) {
+                wsStore.disconnect();
+                setTimeout(() => {
+                    wsStore.connect(logger);
+                }, 500);
+            }
+            
+        } catch (error) {
+            logger.logError(LogCategory.AUTH, error, 'Failed to handle auth callback');
+            vscode.window.showErrorMessage('登入處理失敗，請重試');
+        }
     }
 
     // 創建狀態欄項目
@@ -388,55 +534,213 @@ export async function activate(context: vscode.ExtensionContext) {
     // Initial update of command titles
     updateCommandTitles();
 
-
-
     // 修改登入命令
     let loginCommand = vscode.commands.registerCommand('stockmon.login', async () => {
         try {
-            const username = await vscode.window.showInputBox({
-                prompt: messages.auth.username,
-                placeHolder: messages.auth.username
-            });
+            // 詢問用戶是否使用外部登入頁面
+            const loginMethod = await vscode.window.showQuickPick(
+                [
+                    { label: '$(globe) 使用網頁登入', description: '在瀏覽器中打開登入頁面', id: 'web' },
+                    { label: '$(person) 直接輸入帳號密碼', description: '在VSCode中輸入帳號密碼', id: 'direct' }
+                ],
+                { placeHolder: '選擇登入方式' }
+            );
 
-            if (!username) {
+            if (!loginMethod) {
                 return;
             }
 
-            const password = await vscode.window.showInputBox({
-                prompt: messages.auth.password,
-                placeHolder: messages.auth.password,
-                password: true
-            });
+            if (loginMethod.id === 'web') {
+                // 使用外部登入頁面
+                await useExternalLogin();
+            } else {
+                // 使用直接輸入帳號密碼的方式
+                const username = await vscode.window.showInputBox({
+                    prompt: messages.auth.username,
+                    placeHolder: messages.auth.username
+                });
 
-            if (!password) {
-                return;
-            }
-
-            vscode.window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: messages.auth.loggingIn,
-                cancellable: false
-            }, async (progress) => {
-                try {
-                    const token = await useSessionStore.getState().login(username, password, context);
-                    
-                    // 登入成功後，開始同步
-                    logger.info(LogCategory.EXTENSION, 'Login successful, starting sync');
-                    await useStockDataStore.getState().syncUserStocksFromServer();
-                    useStockDataStore.getState().startAutoSync();
-                    
-                    vscode.window.showInformationMessage(messages.auth.loginSuccess);
-                    return token;
-                } catch (error) {
-                    logger.logError(LogCategory.EXTENSION, error, 'Login failed');
-                    vscode.window.showErrorMessage(messages.auth.loginFailed);
-                    throw error;
+                if (!username) {
+                    return;
                 }
-            });
+
+                const password = await vscode.window.showInputBox({
+                    prompt: messages.auth.password,
+                    placeHolder: messages.auth.password,
+                    password: true
+                });
+
+                if (!password) {
+                    return;
+                }
+
+                vscode.window.withProgress({
+                    location: vscode.ProgressLocation.Notification,
+                    title: messages.auth.loggingIn,
+                    cancellable: false
+                }, async (progress) => {
+                    try {
+                        const token = await useSessionStore.getState().login(username, password, context);
+                        
+                        // 登入成功後，開始同步
+                        logger.info(LogCategory.EXTENSION, 'Login successful, starting sync');
+                        await useStockDataStore.getState().syncUserStocksFromServer();
+                        useStockDataStore.getState().startAutoSync();
+                        
+                        vscode.window.showInformationMessage(messages.auth.loginSuccess);
+                        return token;
+                    } catch (error) {
+                        logger.logError(LogCategory.EXTENSION, error, 'Login failed');
+                        vscode.window.showErrorMessage(messages.auth.loginFailed);
+                        throw error;
+                    }
+                });
+            }
         } catch (error) {
             logger.logError(LogCategory.EXTENSION, error, 'Login command error');
         }
     });
+
+    // 添加外部登入功能
+    async function useExternalLogin() {
+        try {
+            // 生成一個隨機的extension_id
+            const extensionId = `vscode-stockmon-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+            
+            // 獲取正確的 URI 方案和擴展 ID
+            const uriScheme = vscode.env.uriScheme; // 通常是 'vscode'
+            const appExtensionId = context.extension.id; // 使用完整的擴展 ID
+            
+            // 設置回調URL
+            // 使用vscode協議，這將由我們的URI處理器處理
+            const callbackUri = vscode.Uri.parse(`${uriScheme}://${appExtensionId}/auth/callback`);
+            
+            // 將 URI 轉換為外部 URI
+            const externalCallbackUri = await vscode.env.asExternalUri(callbackUri);
+            const callbackUrl = externalCallbackUri.toString();
+            
+            // 構建登入URL，確保正確編碼所有參數
+            const loginUrlParams = new URLSearchParams();
+            loginUrlParams.append('from_extension', 'true');
+            loginUrlParams.append('extension_id', extensionId);
+            loginUrlParams.append('callback_url', callbackUrl);
+            
+            const loginUrl = `http://localhost:8000/accounts/login/?${loginUrlParams.toString()}`;
+            
+            logger.info(LogCategory.EXTENSION, `Opening external login URL: ${loginUrl}`);
+            logger.info(LogCategory.EXTENSION, `Callback URL: ${callbackUrl}`);
+            logger.info(LogCategory.EXTENSION, `Extension ID: ${extensionId}`);
+            logger.info(LogCategory.EXTENSION, `URI Scheme: ${uriScheme}, App Extension ID: ${appExtensionId}`);
+            logger.info(LogCategory.EXTENSION, `External Callback URI: ${externalCallbackUri.toString()}`);
+            
+            // 打開外部瀏覽器
+            await vscode.env.openExternal(vscode.Uri.parse(loginUrl));
+            
+            
+            // 啟動輪詢，作為備用方案
+            startPollingForLogin(extensionId);
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            logger.logError(LogCategory.EXTENSION, error, 'External login error');
+            vscode.window.showErrorMessage(`外部登入失敗: ${errorMessage}`);
+        }
+    }
+
+    // 輪詢登入狀態的函數
+    async function startPollingForLogin(extensionId: string) {
+        logger.info(LogCategory.EXTENSION, `Starting polling for login with extension ID: ${extensionId}`);
+        
+        // 檢查是否已經登入
+        if (useSessionStore.getState().isAuthenticated) {
+            logger.info(LogCategory.EXTENSION, 'User is already authenticated, skipping polling');
+            return;
+        }
+        
+        // 顯示進度條
+        vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: '等待登入完成...',
+            cancellable: true
+        }, async (progress, token) => {
+            // 設置超時時間
+            const timeout = 5 * 60 * 1000; // 5分鐘
+            const startTime = Date.now();
+            
+            // 輪詢間隔
+            const pollInterval = 2000; // 2秒
+            
+            return new Promise<void>((resolve, reject) => {
+                // 設置輪詢定時器
+                const interval = setInterval(async () => {
+                    // 檢查是否已經登入
+                    if (useSessionStore.getState().isAuthenticated) {
+                        clearInterval(interval);
+                        logger.info(LogCategory.EXTENSION, 'User is already authenticated via another method, stopping polling');
+                        resolve();
+                        return;
+                    }
+                    
+                    // 檢查是否取消
+                    if (token.isCancellationRequested) {
+                        clearInterval(interval);
+                        logger.info(LogCategory.EXTENSION, 'Login polling cancelled by user');
+                        reject(new Error('登入已取消'));
+                        return;
+                    }
+                    
+                    // 檢查是否超時
+                    if (Date.now() - startTime > timeout) {
+                        clearInterval(interval);
+                        logger.warning(LogCategory.EXTENSION, 'Login polling timed out');
+                        reject(new Error('登入超時'));
+                        return;
+                    }
+                    
+                    try {
+                        // 檢查登入狀態
+                        logger.debug(LogCategory.EXTENSION, `Polling login status for extension ID: ${extensionId}`);
+                        
+                        // 發送請求到後端檢查登入狀態
+                        const response = await axios.get(`http://localhost:8000/api/auth/extension/check-callback?extension_id=${encodeURIComponent(extensionId)}`);
+                        
+                        // 檢查是否收到回調
+                        if (response.data && response.data.received) {
+                            clearInterval(interval);
+                            logger.info(LogCategory.EXTENSION, 'Login callback received via polling');
+                            
+                            // 獲取token和用戶信息
+                            const token = response.data.token;
+                            const userInfo = response.data.user_info;
+                            
+                            if (token) {
+                                // 處理token
+                                await handleAuthCallback(token, userInfo ? JSON.stringify(userInfo) : null);
+                                resolve();
+                            } else {
+                                logger.warning(LogCategory.EXTENSION, 'Login callback received but no token found');
+                                reject(new Error('登入回調缺少必要的token'));
+                            }
+                            return;
+                        }
+                    } catch (error) {
+                        // 忽略輪詢錯誤，繼續輪詢
+                        logger.debug(LogCategory.EXTENSION, `Login polling error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    }
+                    
+                    // 更新進度
+                    progress.report({ message: '等待登入完成...' });
+                }, pollInterval);
+                
+                // 添加清理函數，確保在 Promise 被解決或拒絕後清除定時器
+                return () => {
+                    clearInterval(interval);
+                };
+            }).catch(error => {
+                logger.warning(LogCategory.EXTENSION, `Login polling failed: ${error.message}`);
+                vscode.window.showWarningMessage(`登入等待失敗: ${error.message}`);
+            });
+        });
+    }
 
     // 修改登出命令
     let logoutCommand = vscode.commands.registerCommand('stockmon.logout', async () => {
@@ -589,7 +893,6 @@ export async function activate(context: vscode.ExtensionContext) {
     //                 detail: '點擊以移除此提醒'
     //             });
     //         });
-    //     });
 
     //     // 顯示提醒清單
     //     const selected = await vscode.window.showQuickPick(items, {
@@ -1074,8 +1377,219 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         })
     );
+
+
+    // 註冊命令：處理 URI 回調
+    context.subscriptions.push(
+        vscode.commands.registerCommand('stockmon.authCallback', (uri: vscode.Uri) => {
+            logger.info(LogCategory.EXTENSION, `Auth callback command triggered with URI: ${uri?.toString() || 'undefined'}`);
+            
+            if (uri) {
+                // 使用通用函數處理 URI
+                processUri(uri);
+            } else {
+                logger.warning(LogCategory.EXTENSION, 'Auth callback command triggered without URI');
+                vscode.window.showWarningMessage('登入回調缺少必要的URI');
+            }
+        })
+    );
+
+    // 註冊命令：直接處理您提供的 URI
+    context.subscriptions.push(
+        vscode.commands.registerCommand('stockmon.handleProvidedUri', async () => {
+            try {
+                // 獲取正確的 URI 方案和擴展 ID
+                const uriScheme = vscode.env.uriScheme; // 通常是 'vscode'
+                const extensionId = context.extension.id; // 使用完整的擴展 ID
+                
+                // 使用您提供的 URI，但確保使用正確的 URI 方案和擴展 ID
+                const providedUri = vscode.Uri.parse(`${uriScheme}://${extensionId}/auth/callback?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjozLCJ1c2VybmFtZSI6ImRhbmllbCIsImVtYWlsIjoic3NzdXBlcm1hbkBnbWFpbC5jb20iLCJleHRlbnNpb25faWQiOiJ2c2NvZGUtc3RvY2ttb24tMTc0MTk2MzUzOTY4NC1od3RtYzN5cmZkbCIsImV4cCI6MTc0MjA0OTk0MCwiaWF0IjoxNzQxOTYzNTQwfQ.BWXpFPJzrERBE2xqJhFvBh9l5smGaXzUa1ALXDH-t7U&user=%7B%22id%22%3A3%2C%22username%22%3A%22daniel%22%2C%22email%22%3A%22sssuperman%40gmail.com%22%2C%22first_name%22%3A%22Daniel%22%2C%22last_name%22%3A%22Chang%22%2C%22is_staff%22%3Afalse%2C%22is_active%22%3Atrue%2C%22date_joined%22%3A%222025-03-07T09%3A19%3A17.530683%2B00%3A00%22%7D`);
+                
+                // 將 URI 轉換為外部 URI
+                const externalProvidedUri = await vscode.env.asExternalUri(providedUri);
+                
+                logger.info(LogCategory.EXTENSION, `Handling provided URI: ${providedUri.toString()}`);
+                logger.info(LogCategory.EXTENSION, `URI components - scheme: ${providedUri.scheme}, authority: ${providedUri.authority}, path: ${providedUri.path}`);
+                logger.info(LogCategory.EXTENSION, `External URI: ${externalProvidedUri.toString()}`);
+                
+                // 直接處理 URI
+                await processUri(providedUri);
+                
+                // 嘗試直接解析 token 和 user
+                const queryParams = new URLSearchParams(providedUri.query);
+                const token = queryParams.get('token');
+                const userInfoStr = queryParams.get('user');
+                
+                if (token && userInfoStr) {
+                    logger.info(LogCategory.EXTENSION, 'Directly calling handleAuthCallback with token and user info');
+                    await handleAuthCallback(token, userInfoStr);
+                }
+                
+                // 也嘗試使用 openExternal 打開 URI
+                logger.info(LogCategory.EXTENSION, 'Also trying to open URI externally');
+                await vscode.env.openExternal(externalProvidedUri);
+                
+                vscode.window.showInformationMessage('已處理提供的 URI，請檢查日誌');
+            } catch (error: unknown) {
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                logger.logError(LogCategory.EXTENSION, error, 'Handle provided URI error');
+                vscode.window.showErrorMessage(`處理提供的 URI 失敗: ${errorMessage}`);
+            }
+        })
+    );
+
+    // 註冊命令：直接處理 URI
+    context.subscriptions.push(
+        vscode.commands.registerCommand('stockmon.handleUri', async (uriString: string) => {
+            try {
+                logger.info(LogCategory.EXTENSION, `Handle URI command triggered with: ${uriString}`);
+                
+                if (!uriString) {
+                    logger.warning(LogCategory.EXTENSION, 'Handle URI command triggered without URI string');
+                    return;
+                }
+                
+                // 解析 URI 字符串
+                const uri = vscode.Uri.parse(uriString);
+                
+                // 將 URI 轉換為外部 URI
+                const externalUri = await vscode.env.asExternalUri(uri);
+                
+                logger.info(LogCategory.EXTENSION, `URI components - scheme: ${uri.scheme}, authority: ${uri.authority}, path: ${uri.path}`);
+                logger.info(LogCategory.EXTENSION, `External URI: ${externalUri.toString()}`);
+                
+                // 處理 URI
+                await processUri(uri);
+                
+                // 也嘗試使用 openExternal 打開 URI
+                logger.info(LogCategory.EXTENSION, 'Also trying to open URI externally');
+                await vscode.env.openExternal(externalUri);
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                logger.logError(LogCategory.EXTENSION, error, 'Handle URI command error');
+            }
+        })
+    );
+
+    // 註冊命令：顯示擴展 ID 和 URI 方案
+    context.subscriptions.push(
+        vscode.commands.registerCommand('stockmon.showExtensionInfo', () => {
+            const extensionId = context.extension.id;
+            const uriScheme = vscode.env.uriScheme;
+            const appExtensionId = extensionId.split('.').pop() || 'stockmon';
+            
+            logger.info(LogCategory.EXTENSION, `Extension ID: ${extensionId}`);
+            logger.info(LogCategory.EXTENSION, `URI Scheme: ${uriScheme}`);
+            logger.info(LogCategory.EXTENSION, `App Extension ID: ${appExtensionId}`);
+            
+            vscode.window.showInformationMessage(`擴展 ID: ${extensionId}\nURI 方案: ${uriScheme}\n應用擴展 ID: ${appExtensionId}`);
+        })
+    );
+    // 註冊命令：檢查 sessionStore 的狀態
+    context.subscriptions.push(
+        vscode.commands.registerCommand('stockmon.checkSessionStore', () => {
+            try {
+                const sessionState = useSessionStore.getState();
+                logger.info(LogCategory.EXTENSION, '=== Session Store State ===');
+                logger.info(LogCategory.EXTENSION, `Auth Token: ${sessionState.authToken ? 'present' : 'null'}`);
+                logger.info(LogCategory.EXTENSION, `Is Authenticated: ${sessionState.isAuthenticated}`);
+                logger.info(LogCategory.EXTENSION, `Session Info: ${JSON.stringify(sessionState.sessionInfo, null, 2)}`);
+                logger.info(LogCategory.EXTENSION, `Client UUID: ${sessionState.clientUuid}`);
+                
+                // 檢查 global state
+                const savedToken = context.globalState.get<string>('authToken');
+                const savedSession = context.globalState.get<SessionInfo>('sessionInfo');
+                logger.info(LogCategory.EXTENSION, '=== Global State ===');
+                logger.info(LogCategory.EXTENSION, `Saved Token: ${savedToken ? 'present' : 'null'}`);
+                logger.info(LogCategory.EXTENSION, `Saved Session: ${JSON.stringify(savedSession, null, 2)}`);
+                
+                // 檢查 token 是否過期
+                if (savedToken) {
+                    try {
+                        const expired = isTokenExpired(savedToken);
+                        logger.info(LogCategory.EXTENSION, `Token Expired: ${expired}`);
+                    } catch (error) {
+                        logger.warning(LogCategory.EXTENSION, `Failed to check token expiration: ${error}`);
+                    }
+                }
+                
+                // 顯示通知
+                vscode.window.showInformationMessage(`Session 狀態: ${sessionState.isAuthenticated ? '已登入' : '未登入'}`);
+                
+                // 顯示日誌
+                logger.show();
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                logger.logError(LogCategory.EXTENSION, error, 'Failed to check session store');
+                vscode.window.showErrorMessage(`檢查 session store 失敗: ${errorMessage}`);
+            }
+        })
+    );
+
+    // 註冊命令：測試 API 請求
+    context.subscriptions.push(
+        vscode.commands.registerCommand('stockmon.testApiRequest', async () => {
+            try {
+                const sessionState = useSessionStore.getState();
+                logger.info(LogCategory.EXTENSION, '=== Testing API Request ===');
+                
+                if (!sessionState.authToken || !sessionState.isAuthenticated) {
+                    logger.warning(LogCategory.EXTENSION, 'No auth token or not authenticated, cannot test API request');
+                    vscode.window.showWarningMessage('未登入，無法測試 API 請求');
+                    return;
+                }
+                
+                logger.info(LogCategory.EXTENSION, `Using auth token: ${sessionState.authToken ? 'present' : 'null'}`);
+                logger.info(LogCategory.EXTENSION, `Client UUID: ${sessionState.clientUuid}`);
+                
+                // 構建請求頭
+                const headers = {
+                    'Authorization': `Bearer ${sessionState.authToken}`,
+                    'Content-Type': 'application/json',
+                    'X-Client-UUID': sessionState.clientUuid
+                };
+                
+                logger.info(LogCategory.EXTENSION, `Request headers: ${JSON.stringify(headers)}`);
+                logger.info(LogCategory.EXTENSION, `Request URL: ${urls.stocks.list}`);
+                
+                // 發送請求
+                const response = await axios.get(urls.stocks.list, { headers });
+                
+                logger.info(LogCategory.EXTENSION, `Response status: ${response.status}`);
+                logger.info(LogCategory.EXTENSION, `Response data: ${JSON.stringify(response.data)}`);
+                
+                // 顯示通知
+                vscode.window.showInformationMessage(`API 請求成功，收到 ${response.data.length} 筆資料`);
+                
+                // 顯示日誌
+                logger.show();
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                logger.logError(LogCategory.EXTENSION, error, 'API request failed');
+                vscode.window.showErrorMessage(`API 請求失敗: ${errorMessage}`);
+                logger.show();
+            }
+        })
+    );
 }
 
 export function deactivate() {
-    LoggerService.getInstance().log(LogCategory.EXTENSION, 'Extension deactivated');
+    const logger = LoggerService.getInstance();
+    logger.log(LogCategory.EXTENSION, 'Extension deactivated');
+    
+    // 確保所有同步操作已完成
+    try {
+        const stockDataStore = useStockDataStore.getState();
+        if (stockDataStore.syncQueue.length > 0) {
+            logger.warning(LogCategory.SYNC, `Extension deactivated with ${stockDataStore.syncQueue.length} items in sync queue`);
+        }
+        
+        // 停止自動同步
+        if (stockDataStore.autoSyncEnabled) {
+            stockDataStore.stopAutoSync();
+            logger.log(LogCategory.SYNC, 'Auto sync stopped on extension deactivation');
+        }
+    } catch (error) {
+        logger.logError(LogCategory.EXTENSION, error, 'Error during extension deactivation');
+    }
 }

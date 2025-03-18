@@ -5,7 +5,7 @@ import { Header } from './components/Header';
 import { VSCodeButton } from '@vscode/webview-ui-toolkit/react';
 import './App.css';
 import { vscode, registerMessageHandler, postMessage } from "./utilities/vscode";
-import { WebSocketState, StockInventory } from '../../src/types';
+import { WebSocketState, StockInventory, IndiceData } from '../../src/types';
 
 const App: React.FC = () => {
     const [stocks, setStocks] = useState<StockInventory[]>([]);
@@ -14,6 +14,7 @@ const App: React.FC = () => {
     const [twseIndex, setTwseIndex] = useState<StockInventory | null>(null);
     const [selectedStock, setSelectedStock] = useState<StockInventory | null>(null);
     const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
+    const [indices, setIndices] = useState<Record<string, IndiceData>>({});
 
     // 更新 sessionInfo 的處理函數
     const updateSessionInfo = (newSessionInfo: any) => {
@@ -46,12 +47,18 @@ const App: React.FC = () => {
                     if (message.sessionInfo) {
                         updateSessionInfo(message.sessionInfo);
                     }
+                    if (message.indices) {
+                        setIndices(message.indices);
+                    }
                     break;
                 case 'updateStocks':
                     setStocks(message.stocks || []);
                     break;
                 case 'updateTwseIndex':
                     setTwseIndex(message.index);
+                    break;
+                case 'updateIndices':
+                    setIndices(message.indices || {});
                     break;
                 case 'updateWebSocketState':
                     setWsState(message.state);
@@ -76,6 +83,8 @@ const App: React.FC = () => {
 
         // Request initial data
         postMessage({ command: 'getStocks' });
+        // 請求指數數據
+        postMessage({ command: 'getIndices' });
     }, []);
 
     const handleDeleteStock = (symbol: string) => {
@@ -104,6 +113,7 @@ const App: React.FC = () => {
                         onDelete={handleDeleteStock} 
                         twseIndex={twseIndex}
                         onSelectStock={handleStockSelect}
+                        indices={indices}
                         key="stock-list"
                     />
                 </>
