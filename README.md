@@ -75,6 +75,36 @@ This extension provides the following settings:
 
 ## Release Notes 版本資訊
 
+### 0.2.7
+- Changed login button title from "Login" to "Sign In" and logout button title from "Logout" to "Sign Out"
+  將登入按鈕標題從 "Login" 更改為 "Sign In"，登出按鈕標題從 "Logout" 更改為 "Sign Out"
+- Updated API paths to ensure correct login and logout functionality
+  更新 API 路徑，確保登入和登出功能正確
+- Added feedback button to allow users to submit feedback
+  新增回饋按鈕，允許用戶提交回饋
+- Optimized user interface for enhanced user experience
+  優化使用者介面，增強用戶體驗
+- Improved stock list display allowing users to change stock order
+  改進股票列表顯示，使用者可更改持股順序
+- Enhanced index display features providing real-time updates and visualization
+  增強指數顯示功能，提供即時更新和視覺化效果
+- Updated CSS styles to improve interface aesthetics and usability
+  更新 CSS 樣式以提升界面美觀性和可用性
+- Optimized error handling and logging to improve system stability
+  優化錯誤處理和日誌記錄，提升系統穩定性
+
+### 0.2.6
+- Added cloud synchronization for stock holdings across multiple devices
+  新增雲端同步持股功能，跨電腦同步持股
+- Added support for Google login authentication
+  新增 Google 登入認證支援
+- Add TWSE and TPeX index real-time update
+  新增加權指數及上櫃指數即時更新
+- Improved WebSocket connection stability and performance
+  改進 WebSocket 連接的穩定性和性能
+- Fixed various bugs and optimized data synchronization
+  修復各種錯誤並優化數據同步
+
 ### 0.2.5
 - Enhanced authentication system with comprehensive login/logout management
   增強認證系統，提供完整的登入/登出管理

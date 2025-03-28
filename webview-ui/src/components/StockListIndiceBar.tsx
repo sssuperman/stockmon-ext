@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { VSCodeButton } from '@vscode/webview-ui-toolkit/react';
 import { IndiceData } from '../../../src/types';
-import './IndiceBar.css';
+import './StockListIndiceBar.css';
 
 interface IndiceBarProps {
   indices: Record<string, IndiceData>;

@@ -12,6 +12,7 @@ import { useSessionStore } from './store/sessionStore';
 export class StockPanel {
     private static logger = LoggerService.getInstance();
     public static currentPanel: StockPanel | undefined;
+    public static messageHandlers: Map<string, (message: any) => Promise<void>> = new Map();
     private readonly _panel: vscode.WebviewPanel;
     private _disposables: vscode.Disposable[] = [];
     private _unsubscribeStockStore?: () => void;
@@ -63,6 +64,15 @@ export class StockPanel {
             type: 'showStockDetail',
             symbol: symbol
         });
+    }
+
+    /**
+     * 向面板的 Webview 發送消息
+     * @param message 要發送的消息
+     */
+    public postMessageToWebview(message: any) {
+        StockPanel.logger.log(LogCategory.PANEL, `Sending message to webview: ${JSON.stringify(message)}`);
+        this._panel.webview.postMessage(message);
     }
 
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
@@ -152,6 +162,18 @@ export class StockPanel {
         this._panel.webview.onDidReceiveMessage(
             async message => {
                 StockPanel.logger.log(LogCategory.PANEL, `Panel Received message from webview - command: ${message.command}`);
+                
+                // 檢查是否有註冊的消息處理器
+                const handler = StockPanel.messageHandlers.get(message.command);
+                if (handler) {
+                    try {
+                        await handler(message);
+                        return;
+                    } catch (error) {
+                        StockPanel.logger.logError(LogCategory.PANEL, error, `Error handling message: ${message.command}`);
+                    }
+                }
+                
                 switch (message.command) {
                     case 'getStocks':
                         // Send initial data to webview

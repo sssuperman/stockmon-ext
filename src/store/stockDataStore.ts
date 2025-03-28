@@ -307,15 +307,20 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
       const savedStocks = ExtensionContextManager.getContext().globalState.get<StockInventory[]>('stocks', []);
       logger.debug(LogCategory.STOCK_DATA, `Local Saved stocks: ${JSON.stringify(savedStocks)}`);
 
-      // Subscribe to each stock individually
+      // 檢查是否有保存的股票
       const symbolsList = savedStocks.map(stock => stock.symbol);
+      
+      // 如果沒有股票，則直接返回，避免發送空訂閱請求
+      if (symbolsList.length === 0) {
+        logger.log(LogCategory.STOCK_DATA, 'No stocks to subscribe, skipping subscription');
+        return;
+      }
 
       try {
         await useStockDataStore.getState().subscribeStock(symbolsList);
       } catch (error) {
         logger.logError(LogCategory.STOCK_DATA, error, `Failed to subscribe to ${symbolsList}`);
         // Continue with next stock even if one fails
-
       }
 
     } catch (error) {
@@ -583,6 +588,39 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
         return { stocks: updatedStocks };
       });
     } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        
+        // 處理 422 錯誤 - 股票不存在或使用者未擁有此股票
+        if (status === 422) {
+          logger.warning(LogCategory.STOCK_DATA, `Stock delete failed: ${error.response?.data?.detail || 'Stock does not exist in database or user does not own this stock'}`);
+          
+          // 還是更新本地狀態，移除成本信息
+          set((state) => {
+            const updatedStocks = state.stocks.map(stock => {
+              if (stock.symbol === symbol) {
+                const { cost, syncVersion, lastSyncTimestamp, clientUuid, ...stockWithoutCost } = stock;
+                return stockWithoutCost as StockInventory;
+              }
+              return stock;
+            });
+
+            const context = ExtensionContextManager.getContext();
+            context.globalState.update('stocks', updatedStocks);
+
+            return { stocks: updatedStocks };
+          });
+          
+          return; // 不拋出錯誤，因為本地操作已完成
+        }
+        
+        // 處理 404 錯誤 - API 路徑錯誤
+        if (status === 404) {
+          logger.logError(LogCategory.STOCK_DATA, error, `API endpoint not found: ${urls.stocks.delete(symbol)}`);
+          throw new Error(`API endpoint not found: ${error.message}`);
+        }
+      }
+      
       if (error instanceof Error && (
         error.message.includes('Network Error') ||
         error.message.includes('Failed to fetch')
@@ -592,7 +630,7 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
           symbol
         });
       }
-      logger.logError(LogCategory.STOCK_DATA, error, `Failed to delete user stock: ${symbol}`);
+      logger.logError(LogCategory.STOCK_DATA, error instanceof Error ? error : new Error('Unknown error'), `Failed to delete user stock: ${symbol}`);
       throw error;
     }
   },
@@ -701,18 +739,94 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
             return { syncQueue: updatedQueue };
           });
         } catch (error) {
-          if (axios.isAxiosError(error) && error.response?.status === 409) {
-            // 處理衝突
-            logger.warning(LogCategory.SYNC, `Conflict detected for ${item.symbol}`);
-            await get().handleSyncConflict(item, error.response.data);
-          } else {
-            logger.logError(LogCategory.SYNC, error instanceof Error ? error : new Error('Unknown error'), `Error processing item ${item.symbol}`);
+          if (axios.isAxiosError(error)) {
+            const status = error.response?.status;
+            
+            // 處理 409 錯誤 - 數據衝突
+            if (status === 409) {
+              logger.warning(LogCategory.SYNC, `Conflict detected for ${item.symbol}`);
+              await get().handleSyncConflict(item, error.response?.data);
+              continue; // 跳到下一個項目
+            }
+            
+            // 處理 422 錯誤 - 資源不存在或不可處理
+            if (status === 422) {
+              logger.warning(LogCategory.SYNC, `Item ${item.symbol} cannot be processed (422): ${error.response?.data?.detail || error.response?.data?.error || 'Unknown error'}`);
+              
+              // 從隊列中移除該項目，因為它無法處理（例如股票不存在或用戶不擁有此股票）
+              set((state) => {
+                const updatedQueue = state.syncQueue.filter(
+                  queueItem => !(queueItem.symbol === item.symbol && queueItem.action === item.action)
+                );
+                
+                const context = ExtensionContextManager.getContext();
+                context.globalState.update('syncQueue', updatedQueue);
+                
+                return { syncQueue: updatedQueue };
+              });
+              
+              // 若是刪除操作，確保本地股票數據也已清理
+              if (item.action === 'delete') {
+                set((state) => {
+                  const updatedStocks = state.stocks.map(stock => {
+                    if (stock.symbol === item.symbol) {
+                      const { cost, syncVersion, lastSyncTimestamp, clientUuid, ...stockWithoutCost } = stock;
+                      return stockWithoutCost as StockInventory;
+                    }
+                    return stock;
+                  });
+                  
+                  const context = ExtensionContextManager.getContext();
+                  context.globalState.update('stocks', updatedStocks);
+                  
+                  return { stocks: updatedStocks };
+                });
+              }
+              
+              // 記錄詳細錯誤信息但不拋出錯誤
+              const errorCode = error.response?.data?.code;
+              const errorDetail = error.response?.data?.detail || error.response?.data?.error;
+              
+              if (errorCode === 'stock_not_found') {
+                logger.warning(LogCategory.SYNC, `Stock ${item.symbol} not found in database`);
+              } else if (errorCode === 'user_stock_not_found') {
+                logger.warning(LogCategory.SYNC, `User does not own stock ${item.symbol}`);
+              } else {
+                logger.warning(LogCategory.SYNC, `Unprocessable entity for stock ${item.symbol}: ${errorDetail}`);
+              }
+              
+              continue; // 跳到下一個項目
+            }
+            
+            // 處理 401/403 錯誤 - 身份驗證/授權問題
+            if (status === 401 || status === 403) {
+              logger.warning(LogCategory.SYNC, `Authentication/Authorization error (${status}) while processing ${item.symbol}`);
+              // 不移除項目，等待下次登入後再處理
+              break; // 中斷整個佇列處理，等待重新登入
+            }
           }
+          
+          // 處理網絡錯誤
+          if (error instanceof Error && (
+            error.message.includes('Network Error') ||
+            error.message.includes('Failed to fetch') ||
+            error.message.includes('timeout')
+          )) {
+            logger.warning(LogCategory.SYNC, `Network error while processing ${item.symbol}, will retry later`);
+            // 不移除項目，等待下次網絡恢復後再處理
+            break; // 中斷整個佇列處理，等待網絡恢復
+          }
+          
+          // 處理其他錯誤
+          logger.logError(LogCategory.SYNC, error instanceof Error ? error : new Error('Unknown error'), `Error processing item ${item.symbol}`);
+          
+          // 如果連續失敗次數超過閾值，可以考慮從隊列中移除
+          // 目前先保留在隊列中，等待下次處理
         }
       }
     } catch (error) {
       logger.logError(LogCategory.SYNC, error instanceof Error ? error : new Error('Unknown error'), 'Failed to process sync queue');
-      throw error;
+      // 不拋出錯誤，避免中斷外層的同步處理邏輯
     }
   },
 
@@ -728,6 +842,12 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
     const { wsState } = useWebSocketStore.getState();
     
     try {
+      // 檢查是否提供了有效的股票代碼
+      if (!symbols || !Array.isArray(symbols) || symbols.length === 0) {
+        logger.warning(LogCategory.STOCK_DATA, '訂閱請求未提供有效的股票代碼');
+        return { type: 'warning', message: '未提供股票代碼' };
+      }
+
       const response = await useWebSocketStore.getState().sendAndWait(
         { action: 'subscribe', symbols },
         (message) => message.type === 'subscription_success',
@@ -753,6 +873,8 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
   addStock: async (symbols: string[]) => {
     const logger = LoggerService.getInstance();
     const context = ExtensionContextManager.getContext();
+    const isAuthenticated = useSessionStore.getState().isAuthenticated;
+    const authToken = useSessionStore.getState().authToken;
 
     try {
       // 檢查是否已存在
@@ -777,12 +899,25 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
       // 2. 建立 WebSocket 訂閱
       await get().subscribeStock(newSymbols);
 
-      // 3. 處理後端同步
-      if (useSessionStore.getState().authToken) {
-        await Promise.all(newSymbols.map(symbol => 
-          get().syncStockToServer(symbol)
-        ));
+      // 3. 處理後端同步 (只有在已登入狀態下才執行)
+      if (isAuthenticated && authToken) {
+        try {
+          await Promise.all(newSymbols.map(symbol => 
+            get().syncStockToServer(symbol)
+          ));
+        } catch (error) {
+          logger.logError(LogCategory.STOCK_DATA, error, 'Failed to sync stocks to server, adding to sync queue');
+          // 將失敗的同步加入隊列
+          newSymbols.forEach(symbol => {
+            get().addToSyncQueue({
+              action: 'add',
+              symbol
+            });
+          });
+        }
       } else {
+        // 未登入狀態，只加入同步隊列，等待之後登入時同步
+        logger.log(LogCategory.STOCK_DATA, `User not authenticated, adding ${newSymbols.length} stocks to sync queue`);
         newSymbols.forEach(symbol => {
           get().addToSyncQueue({
             action: 'add',
@@ -1105,6 +1240,8 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
   removeStock: async (symbol: string): Promise<void> => {
     const logger = LoggerService.getInstance();
     const context = ExtensionContextManager.getContext();
+    const isAuthenticated = useSessionStore.getState().isAuthenticated;
+    const authToken = useSessionStore.getState().authToken;
 
     try {
       // 1. 先取消 WebSocket 訂閱
@@ -1117,10 +1254,20 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
         return { stocks: newStocks };
       });
 
-      // 3. 同步到服務器
-      if (useSessionStore.getState().authToken) {
-        await get().deleteStockFromServer(symbol);
+      // 3. 同步到服務器 (只有在已登入狀態下才執行)
+      if (isAuthenticated && authToken) {
+        try {
+          await get().deleteStockFromServer(symbol);
+        } catch (error) {
+          logger.logError(LogCategory.STOCK_DATA, error, 'Failed to delete stock from server, adding to sync queue');
+          get().addToSyncQueue({
+            action: 'delete',
+            symbol
+          });
+        }
       } else {
+        // 未登入狀態，只加入同步隊列，等待之後登入時同步
+        logger.log(LogCategory.STOCK_DATA, `User not authenticated, adding delete operation to sync queue: ${symbol}`);
         get().addToSyncQueue({
           action: 'delete',
           symbol
@@ -1136,18 +1283,54 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
 
   // 3. 從服務器刪除股票
   deleteStockFromServer: async (symbol: string) => {
+    const logger = LoggerService.getInstance();
     try {
       const headers = {
         'Authorization': `Bearer ${useSessionStore.getState().authToken}`,
         'Content-Type': 'application/json',
+        'X-Client-UUID': useSessionStore.getState().clientUuid || '',
       };
 
-      await axios.delete(urls.stocks.delete(symbol), { headers });
+      const response = await axios.delete(urls.stocks.delete(symbol), { headers });
+      logger.info(LogCategory.STOCK_DATA, `Successfully deleted stock ${symbol} from server`);
+      return response.data;
     } catch (error) {
+      if (axios.isAxiosError(error)) {
+        if (error.response) {
+          const status = error.response.status;
+          const data = error.response.data;
+          
+          // 處理 422 錯誤 - 股票在資料庫中不存在或用戶沒有此股票
+          if (status === 422) {
+            if (data.code === 'stock_not_found') {
+              logger.warning(LogCategory.STOCK_DATA, `Stock ${symbol} does not exist in database`);
+              // 本地刪除就好，不需要再同步
+              return { message: `Stock ${symbol} not found in database, removed locally` };
+            } else if (data.code === 'user_stock_not_found') {
+              logger.warning(LogCategory.STOCK_DATA, `User does not own stock ${symbol}`);
+              // 本地刪除就好，不需要再同步
+              return { message: `User does not own stock ${symbol}, removed locally` };
+            }
+          }
+          
+          // 處理 404 錯誤 - API 路徑錯誤
+          if (status === 404) {
+            logger.logError(LogCategory.STOCK_DATA, error, `API endpoint not found: ${urls.stocks.delete(symbol)}`);
+            throw new Error(`API endpoint not found: ${error.message}`);
+          }
+          
+          // 處理其他錯誤
+          logger.warning(LogCategory.STOCK_DATA, `Failed to delete stock ${symbol}: ${status} ${JSON.stringify(data)}`);
+        }
+      }
+      
+      // 將刪除操作加入同步佇列，等待下次同步
+      logger.info(LogCategory.STOCK_DATA, `Adding delete operation for ${symbol} to sync queue`);
       get().addToSyncQueue({
         action: 'delete',
         symbol
       });
+      
       throw error;
     }
   },
@@ -1492,63 +1675,22 @@ export const useStockDataStore = create<StockDataState>()((set, get) => ({
         return;
       }
       
-      logger.log(LogCategory.SYNC, `準備上傳 ${localStocks.length} 筆本地持股資料到雲端`);
+      logger.log(LogCategory.SYNC, `Found ${localStocks.length} local stocks with cost, uploading...`);
       
-      // 準備上傳資料
-      const uploadData = localStocks.map(stock => ({
-        stock_id: stock.symbol,
-        quantity: stock.cost?.quantity || 0,
-        average_cost: stock.cost?.averageCost || 0,
-        version: stock.syncVersion || 1,
-        last_sync_timestamp: stock.lastSyncTimestamp || Date.now(),
-        client_uuid: sessionStore.clientUuid
-      }));
-      
-      // 設置請求頭
-      const headers = {
-        'Authorization': `Bearer ${sessionStore.authToken}`,
-        'Content-Type': 'application/json',
-        'X-Client-UUID': sessionStore.clientUuid
-      };
-      
-      // 發送批量上傳請求
-      const response = await axios.post(
-        `${config.API_BASE_URL}/user/batch-upload`,
-        uploadData,
-        { headers }
-      );
-      
-      logger.log(LogCategory.SYNC, `成功上傳 ${response.data.length} 筆持股資料到雲端`);
-      
-      // 更新本地股票的同步狀態
-      if (response.data && Array.isArray(response.data)) {
-        set((state) => {
-          const updatedStocks = state.stocks.map(stock => {
-            const serverStock = response.data.find((s: any) => s.stock_symbol === stock.symbol);
-            if (serverStock) {
-              return {
-                ...stock,
-                syncVersion: serverStock.version,
-                lastSyncTimestamp: serverStock.last_sync_timestamp,
-                clientUuid: serverStock.client_uuid
-              };
-            }
-            return stock;
-          });
-          
-          // 保存到全局狀態
-          const context = ExtensionContextManager.getContext();
-          context.globalState.update('stocks', updatedStocks);
-          
-          return { stocks: updatedStocks };
+      // 將這些股票加入同步佇列
+      for (const stock of localStocks) {
+        get().addToSyncQueue({
+          action: 'add',
+          symbol: stock.symbol,
+          quantity: stock.cost?.quantity || 0,
+          averageCost: stock.cost?.averageCost || 0
         });
       }
       
-      // 顯示成功訊息
-      vscode.window.showInformationMessage(`已成功將 ${response.data.length} 筆持股資料同步到雲端`);
+      // 處理同步佇列
+      await get().processSyncQueue();
     } catch (error) {
-      logger.logError(LogCategory.SYNC, error, '上傳本地股票資料到雲端失敗');
-      vscode.window.showErrorMessage('上傳本地股票資料到雲端失敗，請稍後再試');
+      logger.logError(LogCategory.SYNC, error, 'Failed to upload local stocks to server');
       throw error;
     }
   },

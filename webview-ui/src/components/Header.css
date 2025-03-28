@@ -11,6 +11,7 @@
 .header-left, .header-right {
     display: flex;
     align-items: center;
+    gap: 8px;
 }
 
 /* 連接狀態樣式 */
@@ -43,31 +44,161 @@
     color: #f44336;
 }
 
-/* 登入按鈕樣式 */
-.auth-button {
-    display: flex;
-    align-items: center;
-    padding: 4px 12px;
-    border-radius: 4px;
-    font-size: 12px;
-    transition: background-color 0.2s;
+/* 按鈕圖標樣式 */
+.button-icon {
+    font-size: 16px;
+    line-height: 1;
 }
 
-.auth-icon {
-    margin-right: 6px;
+/* 登入按鈕樣式 */
+.login-button {
+    min-width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+/* 持股管理按鈕樣式 */
+.portfolio-button {
+    min-width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    margin-right: 8px;
+    position: relative;
+}
+
+.portfolio-button:hover::after {
+    content: '管理持股';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 1000;
+    margin-top: 4px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+/* 登出按鈕樣式 */
+.logout-button {
+    min-width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+.logout-button:hover {
+    opacity: 1;
+}
+
+/* 用戶頭像容器 */
+.user-avatar-container {
+    position: relative;
+    cursor: pointer;
+}
+
+/* 用戶頭像樣式 */
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
     font-size: 14px;
+    user-select: none;
+    transition: background-color 0.2s ease;
+}
+
+.user-avatar-container:hover .user-avatar {
+    background-color: var(--vscode-button-hoverBackground);
+}
+
+/* 用戶信息彈出卡片 */
+.user-info-tooltip {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 200px;
+    padding: 12px;
+    background-color: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 4px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    font-size: 12px;
+}
+
+/* 添加小三角形箭頭 */
+.user-info-tooltip::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    right: 12px;
+    width: 10px;
+    height: 10px;
+    background-color: var(--vscode-editor-background);
+    border-left: 1px solid var(--vscode-panel-border);
+    border-top: 1px solid var(--vscode-panel-border);
+    transform: rotate(45deg);
+}
+
+/* 懸浮卡片內容項目 */
+.tooltip-item {
+    display: flex;
+    margin-bottom: 8px;
+}
+
+.tooltip-item:last-child {
+    margin-bottom: 0;
+}
+
+.tooltip-label {
+    flex: 0 0 auto;
+    color: var(--vscode-foreground);
+    opacity: 0.8;
+    margin-right: 8px;
+}
+
+.tooltip-value {
+    flex: 1;
+    color: var(--vscode-foreground);
+    font-weight: 500;
+    word-break: break-all;
 }
 
 /* 響應式設計 */
-@media (max-width: 480px) {
-    .status-text, .auth-text {
+@media (max-width: 600px) {
+    .status-text {
         display: none;
     }
     
-    .status-icon, .auth-icon {
+    .status-icon {
         margin-right: 0;
     }
-    
+}
+
+@media (max-width: 400px) {
     .header {
         padding: 8px;
     }

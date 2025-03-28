@@ -1,0 +1,264 @@
+/* 浮動反饋按鈕樣式 */
+.feedback-button {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    transition: all 0.3s ease;
+}
+
+.feedback-button:hover {
+    transform: scale(1.1);
+    background-color: var(--vscode-button-hoverBackground);
+}
+
+.feedback-button.active {
+    transform: rotate(45deg);
+}
+
+.feedback-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 反饋對話框樣式 */
+.feedback-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1001;
+    backdrop-filter: blur(2px);
+}
+
+.feedback-dialog {
+    background-color: var(--vscode-editor-background);
+    color: var(--vscode-editor-foreground);
+    border-radius: 6px;
+    width: 90%;
+    max-width: 550px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 5px 25px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    animation: fadeIn 0.2s ease-out;
+    margin: 0 auto;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.feedback-header {
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.feedback-header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 500;
+}
+
+.close-button {
+    background: none;
+    border: none;
+    color: var(--vscode-descriptionForeground);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+
+.close-button:hover {
+    background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.feedback-content {
+    padding: 20px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* 回饋類型選擇樣式 */
+.feedback-type-selection {
+    width: 100%;
+}
+
+.feedback-type-selection p {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.feedback-type-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+}
+
+.feedback-type-buttons vscode-button {
+    width: 100%;
+    text-align: left;
+    display: flex;
+    align-items: center;
+}
+
+.button-icon {
+    margin-right: 8px;
+    font-size: 18px;
+}
+
+/* 反饋表單樣式 */
+.feedback-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+}
+
+.selected-type {
+    margin-bottom: 8px;
+}
+
+.type-badge {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 16px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.type-badge.feature {
+    background-color: rgba(0, 120, 215, 0.2);
+    color: #0078D7;
+}
+
+.type-badge.question {
+    background-color: rgba(0, 153, 76, 0.2);
+    color: #00994C;
+}
+
+.type-badge.issue {
+    background-color: rgba(215, 0, 34, 0.2);
+    color: #D70022;
+}
+
+.email-hint {
+    color: var(--vscode-descriptionForeground);
+    font-size: 12px;
+    margin-top: 4px;
+    display: block;
+}
+
+.form-group {
+    margin-bottom: 16px;
+    width: 100%;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--vscode-foreground);
+}
+
+.form-group vscode-text-field,
+.form-group vscode-text-area {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 12px;
+    width: 100%;
+}
+
+/* 提交成功樣式 */
+.feedback-success {
+    text-align: center;
+    padding: 20px 0;
+    width: 100%;
+}
+
+.success-icon {
+    font-size: 40px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: var(--vscode-terminal-ansiGreen);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+}
+
+.feedback-success h3 {
+    margin: 0 0 10px;
+    font-size: 18px;
+}
+
+.feedback-success p {
+    margin: 0;
+    color: var(--vscode-descriptionForeground);
+}
+
+/* 移動設備優化 */
+@media (max-width: 600px) {
+    .feedback-button {
+        bottom: 20px;
+        right: 20px;
+        width: 48px;
+        height: 48px;
+    }
+    
+    .feedback-dialog {
+        width: 95%;
+        margin: 10px;
+    }
+}
+
+.error-message {
+    color: var(--vscode-errorForeground);
+    font-size: 12px;
+    margin-top: 4px;
+    margin-bottom: 4px;
+} 

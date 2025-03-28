@@ -71,25 +71,33 @@ export const config = {
 // 重命名為 extensionConfig.ts，包含 VSCode 相關配置
 export const urls = {
     auth: {
-        login: `${config.API_BASE_URL}/auth/login`,
-        logout: `${config.API_BASE_URL}/auth/logout`
+        login: `${config.API_BASE_URL}/auth/login/`,
+        logout: `${config.API_BASE_URL}/auth/logout`,
+        extensionLogin: `${config.API_BASE_URL.replace('/api', '')}/login/`,
+        checkCallback: (extensionId: string) => `${config.API_BASE_URL}/auth/extension/check-callback?extension_id=${extensionId}`
     },
-    session: `${config.API_BASE_URL}/session`,
+    session: `${config.API_BASE_URL}/session/`,
     stocks: {
         list: `${config.API_BASE_URL}/user/stocks`,
         search: `${config.API_BASE_URL}/stocks/search`,
         create: `${config.API_BASE_URL}/user/stocks`,
         update: (symbol: string) => `${config.API_BASE_URL}/user/stocks/symbol/${symbol}`,
         delete: (symbol: string) => `${config.API_BASE_URL}/user/stocks/symbol/${symbol}`,
+        detail: (symbol: string) => `${config.API_BASE_URL}/stocks/${symbol}`,
+        batch: `${config.API_BASE_URL}/user/batch-upload`,
+        synchronize: `${config.API_BASE_URL}/sync/synchronize`,
         syncStatus: `${config.API_BASE_URL}/sync/status`,
         conflicts: `${config.API_BASE_URL}/sync/conflicts`,
-        resolveConflict: `${config.API_BASE_URL}/sync/resolve-conflict`,
-        synchronize: `${config.API_BASE_URL}/sync/synchronize`
+        resolveConflict: `${config.API_BASE_URL}/sync/resolve-conflict`
     },
     alerts: {
         list: `${config.API_BASE_URL}/user/alerts`,
         create: `${config.API_BASE_URL}/user/alerts`,
         delete: (id: number) => `${config.API_BASE_URL}/user/alerts/${id}`
+    },
+    feedback: {
+        submit: `${config.API_BASE_URL}/feedback/submit/`,
+        types: `${config.API_BASE_URL}/feedback/types/`
     }
 };
 

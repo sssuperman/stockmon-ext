@@ -82,12 +82,12 @@
       },
       {
         "command": "stockmon.login",
-        "title": "Login",
+        "title": "Sign In",
         "category": "StockMon"
       },
       {
         "command": "stockmon.logout",
-        "title": "Logout",
+        "title": "Sign Out",
         "category": "StockMon"
       },
       {
@@ -263,7 +263,12 @@
         },
         "stockmon.logLevel": {
           "type": "string",
-          "enum": ["DEBUG", "INFO", "WARNING", "ERROR"],
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR"
+          ],
           "default": "INFO",
           "description": "設置 StockMon 擴展的日誌級別 (DEBUG 顯示所有日誌，INFO 顯示一般信息，WARNING 只顯示警告和錯誤，ERROR 只顯示錯誤)"
         }
@@ -321,10 +326,15 @@
     "vite": "^4.3.9"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/material": "^6.4.8",
     "@vscode/webview-ui-toolkit": "^1.2.2",
     "axios": "^1.6.5",
     "eslint": "^8.57.1",
     "react": "^18.2.0",
+    "react-dnd": "^16.0.1",
+    "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^18.2.0",
     "uuid": "^11.0.5",
     "ws": "^8.16.0",

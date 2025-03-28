@@ -19,20 +19,91 @@
     border-bottom: 1px solid var(--vscode-panel-border);
 }
 
-.connection-status {
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 12px;
+    font-size: 0.85em;
+    white-space: nowrap;
+    min-width: 24px;
+    justify-content: center;
+}
+
+.status-badge .status-icon {
+    font-size: 0.85em;
+}
+
+.status-badge .status-text {
+    display: none;
+}
+
+.status-badge:hover .status-text {
+    display: inline;
+    margin-left: 2px;
+}
+
+.status-badge.connected {
+    background: var(--vscode-terminal-ansiGreen);
+    color: var(--vscode-editor-background);
+}
+
+.status-badge.connecting {
+    background: var(--vscode-terminal-ansiYellow);
+    color: var(--vscode-editor-background);
+}
+
+.status-badge.offline {
+    background: var(--vscode-terminal-ansiRed);
+    color: var(--vscode-editor-background);
+}
+
+.auth-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 12px;
+    min-width: auto;
+    font-size: 0.9em;
+    white-space: nowrap;
+    max-width: 200px;
 }
 
-.connection-status.connected {
-    background-color: var(--vscode-debugIcon-startForeground);
-    color: var(--vscode-button-foreground);
+.auth-button .auth-icon {
+    font-size: 1em;
 }
 
-.connection-status.disconnected {
-    background-color: var(--vscode-debugIcon-stopForeground);
-    color: var(--vscode-button-foreground);
+.auth-button .auth-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 在小屏幕上進一步優化顯示 */
+@media (max-width: 480px) {
+    .header {
+        padding: 8px 12px;
+    }
+
+    .auth-button {
+        padding: 4px 6px;
+    }
+
+    .auth-button .auth-text {
+        max-width: 100px;
+    }
 }
 
 .stock-grid {
@@ -235,4 +306,151 @@
 .stock-chart {
     display: flex;
     align-items: center;
+}
+
+/* 註冊提示樣式 */
+.registration-prompt {
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px;
+    padding: 12px;
+    margin: 8px 0;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.prompt-content {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    text-align: left;
+    gap: 16px;
+}
+
+.prompt-icon {
+    font-size: 2em;
+    flex-shrink: 0;
+}
+
+.prompt-text {
+    flex: 1;
+}
+
+.prompt-content h3 {
+    margin: 0 0 4px;
+    font-size: 1.1em;
+    color: var(--vscode-foreground);
+}
+
+.prompt-content p {
+    margin: 0 0 8px;
+    color: var(--vscode-descriptionForeground);
+    font-size: 0.9em;
+    line-height: 1.4;
+}
+
+.prompt-benefits {
+    display: flex;
+    gap: 12px;
+    margin: 4px 0;
+}
+
+.benefit-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.9em;
+}
+
+.benefit-icon {
+    font-size: 1.2em;
+}
+
+.register-button {
+    margin-left: auto;
+    padding: 4px 12px;
+    font-size: 0.9em;
+}
+
+@media (max-width: 600px) {
+    .prompt-content {
+        flex-direction: column;
+        text-align: center;
+        gap: 8px;
+    }
+
+    .prompt-benefits {
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .register-button {
+        margin: 8px auto 0;
+    }
+}
+
+/* 側邊欄引導樣式 */
+.sidebar-guide {
+    margin: 10px 0;
+    padding: 10px;
+    border-radius: 6px;
+    background-color: var(--vscode-editor-infoBackground, rgba(0, 122, 204, 0.1));
+    border: 1px solid var(--vscode-focusBorder, #007acc);
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+.guide-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px;
+}
+
+.guide-icon {
+    font-size: 1.8rem;
+    margin-right: 15px;
+    color: var(--vscode-symbolIcon-classForeground, #ee9d28);
+}
+
+.guide-text {
+    flex: 1;
+}
+
+.guide-text h3 {
+    margin: 0 0 5px 0;
+    color: var(--vscode-foreground);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.guide-text p {
+    margin: 0;
+    color: var(--vscode-descriptionForeground);
+    font-size: 12px;
+}
+
+.show-portfolio-button {
+    white-space: nowrap;
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    padding: 6px 12px;
+    cursor: pointer;
+    border-radius: 2px;
+    font-size: 12px;
+    transition: background-color 0.2s;
+}
+
+.show-portfolio-button:hover {
+    background-color: var(--vscode-button-hoverBackground);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
 } 

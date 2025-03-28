@@ -160,5 +160,6 @@ export enum LogCategory {
     AUTH = 'Auth',
     PORTFOLIO = 'Portfolio',
     API = 'API',
-    INDICE_DATA = 'IndiceData'
+    INDICE_DATA = 'IndiceData',
+    FEEDBACK = 'Feedback'
 } 

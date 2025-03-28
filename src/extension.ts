@@ -274,20 +274,17 @@ export async function activate(context: vscode.ExtensionContext) {
         // 組合狀態欄文字
         if (hasPositions) {
             statusBarItem.text = `${connectionIcon} ${profitText} ${loginIcon}`.trim();
+        } else if (!sessionState.isAuthenticated && !hasPositions) {
+            // 未登入且沒有持股時，顯示為 StockMon
+            statusBarItem.text = `StockMon`;
         } else {
             statusBarItem.text = `${connectionIcon} ${loginIcon}`.trim();
         }
         statusBarItem.tooltip = `${connectionTooltip} | ${loginTooltip}`;
         statusBarItem.color = profitColor;
         
-        // 設置點擊命令
-        if (!sessionState.isAuthenticated) {
-            // 未登入時，點擊顯示登入選項
-            statusBarItem.command = 'stockmon.showLoginOptions';
-        } else {
-            // 已登入時，點擊顯示面板
-            statusBarItem.command = 'stockmon.showPanel';
-        }
+        // 設置點擊命令 - 始終打開面板
+        statusBarItem.command = 'stockmon.showPanel';
     }
 
     // 初始更新
@@ -625,7 +622,8 @@ export async function activate(context: vscode.ExtensionContext) {
             loginUrlParams.append('extension_id', extensionId);
             loginUrlParams.append('callback_url', callbackUrl);
             
-            const loginUrl = `http://localhost:8000/accounts/login/?${loginUrlParams.toString()}`;
+            // 使用正確的 URL 路徑
+            const loginUrl = `${urls.auth.extensionLogin}?${loginUrlParams.toString()}`;
             
             logger.info(LogCategory.EXTENSION, `Opening external login URL: ${loginUrl}`);
             logger.info(LogCategory.EXTENSION, `Callback URL: ${callbackUrl}`);
@@ -635,7 +633,6 @@ export async function activate(context: vscode.ExtensionContext) {
             
             // 打開外部瀏覽器
             await vscode.env.openExternal(vscode.Uri.parse(loginUrl));
-            
             
             // 啟動輪詢，作為備用方案
             startPollingForLogin(extensionId);
@@ -701,7 +698,7 @@ export async function activate(context: vscode.ExtensionContext) {
                         logger.debug(LogCategory.EXTENSION, `Polling login status for extension ID: ${extensionId}`);
                         
                         // 發送請求到後端檢查登入狀態
-                        const response = await axios.get(`http://localhost:8000/api/auth/extension/check-callback?extension_id=${encodeURIComponent(extensionId)}`);
+                        const response = await axios.get(urls.auth.checkCallback(extensionId));
                         
                         // 檢查是否收到回調
                         if (response.data && response.data.received) {
@@ -1571,6 +1568,319 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         })
     );
+
+    // 創建右下角添加股票提示
+    const createStockNotificationButton = () => {
+        const stocksCount = useStockDataStore.getState().stocks.length;
+        
+        if (stocksCount === 0) {
+            // 建立通知
+            const notification = vscode.window.createStatusBarItem(
+                vscode.StatusBarAlignment.Right,
+                99  // 設置優先級，比主狀態欄稍低
+            );
+            
+            notification.text = "$(plus-circle) 建立持倉";
+            notification.tooltip = "添加您的第一個股票持倉";
+            notification.command = 'stockmon.createFirstStock';
+            notification.show();
+            
+            // 添加到訂閱中清理
+            context.subscriptions.push(notification);
+            
+            // 返回通知實例以便後續操作
+            return notification;
+        }
+        
+        return null;
+    };
+
+    // 初始化空持倉提示
+    let emptyStockNotification = createStockNotificationButton();
+
+    // 訂閱 Stock 數據變化，更新空持倉提示
+    const unsubscribeStockStoreForNotification = useStockDataStore.subscribe((state) => {
+        if (state.stocks.length === 0 && !emptyStockNotification) {
+            // 如果沒有股票且提示不存在，則創建提示
+            emptyStockNotification = createStockNotificationButton();
+        } else if (state.stocks.length > 0 && emptyStockNotification) {
+            // 如果有股票且提示存在，則移除提示
+            emptyStockNotification.dispose();
+            emptyStockNotification = null;
+        }
+    });
+
+    // 註冊引導添加第一個股票的命令
+    context.subscriptions.push(
+        vscode.commands.registerCommand('stockmon.createFirstStock', async () => {
+            logger.info(LogCategory.EXTENSION, 'Create first stock command triggered');
+            
+            // 顯示面板
+            const panel = StockPanel.createOrShow(context.extensionUri);
+            
+            // 等待面板初始化完成
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // 告訴面板顯示空狀態提示並高亮添加按鈕
+            if (StockPanel.currentPanel) {
+                // 使用公共方法發送消息
+                StockPanel.currentPanel.postMessageToWebview({
+                    type: 'showEmptyState',
+                    highlightAddButton: true
+                });
+            }
+        })
+    );
+
+    // 添加到待清理列表
+    context.subscriptions.push({ dispose: () => unsubscribeStockStoreForNotification() });
+
+    // // 註冊命令：處理用戶反饋
+    // context.subscriptions.push(
+    //     vscode.commands.registerCommand('stockmon.submitFeedback', async (feedbackData: any) => {
+    //         try {
+    //             logger.info(LogCategory.EXTENSION, 'Processing feedback submission...');
+                
+    //             const sessionState = useSessionStore.getState();
+    //             const headers = {
+    //                 'Authorization': `Bearer ${sessionState.authToken}`,
+    //                 'Content-Type': 'application/json',
+    //                 'X-Client-UUID': sessionState.clientUuid
+    //             };
+                
+    //             // 添加系統信息到 metadata
+    //             const metadata = {
+    //                 ...feedbackData.metadata,
+    //                 vscodeVersion: vscode.version,
+    //                 extensionVersion: context.extension.packageJSON.version,
+    //                 platform: process.platform,
+    //                 arch: process.arch,
+    //                 uriScheme: vscode.env.uriScheme,
+    //                 appHost: vscode.env.appHost,
+    //                 sessionId: sessionState.clientUuid,
+    //                 wsState: useWebSocketStore.getState().wsState
+    //             };
+                
+    //             // 發送反饋到後端
+    //             const response = await axios.post(urls.feedback.submit, {
+    //                 ...feedbackData,
+    //                 metadata
+    //             }, { headers });
+                
+    //             if (response.data.status === 'success') {
+    //                 // 如果面板存在，發送成功消息給面板
+    //                 if (StockPanel.currentPanel) {
+    //                     StockPanel.currentPanel.postMessageToWebview({
+    //                         type: 'feedbackResponse',
+    //                         data: {
+    //                             status: 'success',
+    //                             message: '感謝您的反饋！'
+    //                         }
+    //                     });
+    //                 }
+                    
+    //                 vscode.window.showInformationMessage('感謝您的反饋！');
+    //                 logger.info(LogCategory.EXTENSION, 'Feedback submitted successfully');
+    //             } else {
+    //                 throw new Error(response.data.message || '提交反饋失敗');
+    //             }
+    //         } catch (error) {
+    //             const errorMessage = error instanceof Error ? error.message : '未知錯誤';
+    //             logger.logError(LogCategory.EXTENSION, error, 'Error submitting feedback');
+                
+    //             // 如果面板存在，發送錯誤消息給面板
+    //             if (StockPanel.currentPanel) {
+    //                 StockPanel.currentPanel.postMessageToWebview({
+    //                     type: 'feedbackResponse',
+    //                     data: {
+    //                         status: 'error',
+    //                         message: `提交反饋失敗: ${errorMessage}`
+    //                     }
+    //                 });
+    //             }
+                
+    //             vscode.window.showErrorMessage(`提交反饋失敗: ${errorMessage}`);
+    //         }
+    //     })
+    // );
+
+    // 註冊命令：獲取反饋類型
+    context.subscriptions.push(
+        vscode.commands.registerCommand('stockmon.getFeedbackTypes', async () => {
+            try {
+                logger.info(LogCategory.EXTENSION, 'Fetching feedback types...');
+                
+                const sessionState = useSessionStore.getState();
+                const headers = {
+                    'Authorization': `Bearer ${sessionState.authToken}`,
+                    'Content-Type': 'application/json',
+                    'X-Client-UUID': sessionState.clientUuid
+                };
+                
+                const response = await axios.get(urls.feedback.types, { headers });
+                
+                // 如果面板存在，發送類型列表給面板
+                if (StockPanel.currentPanel) {
+                    StockPanel.currentPanel.postMessageToWebview({
+                        type: 'feedbackTypes',
+                        data: response.data.types
+                    });
+                }
+                
+                return response.data.types;
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : '未知錯誤';
+                logger.logError(LogCategory.EXTENSION, error, 'Error fetching feedback types');
+                vscode.window.showErrorMessage(`獲取反饋類型失敗: ${errorMessage}`);
+                throw error;
+            }
+        })
+    );
+
+    // 註冊反饋提交命令
+    let submitFeedbackCommand = vscode.commands.registerCommand('stockmon.submitFeedback', async (feedback: any) => {
+        try {
+            logger.info(LogCategory.FEEDBACK, `Submitting feedback: ${JSON.stringify(feedback)}`);
+            
+            // 獲取當前的 session token
+            const sessionState = useSessionStore.getState();
+            const token = sessionState.authToken;
+            
+            // 準備請求頭
+            const headers: any = {
+                'Content-Type': 'application/json'
+            };
+            
+            // 如果已登入，添加認證 token
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            
+            // 發送反饋到後端
+            const response = await axios.post(urls.feedback.submit, feedback, { headers });
+            
+            logger.info(LogCategory.FEEDBACK, `Feedback submitted successfully: ${JSON.stringify(response.data)}`);
+            
+            // 通知 webview 提交成功
+            if (StockPanel.currentPanel) {
+                StockPanel.currentPanel.postMessageToWebview({
+                    type: 'feedbackResponse',
+                    data: {
+                        status: 'success',
+                        message: '反饋已成功提交'
+                    }
+                });
+            }
+            
+        } catch (error) {
+            logger.logError(LogCategory.FEEDBACK, error, '提交反饋時發生錯誤');
+            
+            // 通知 webview 提交失敗
+            if (StockPanel.currentPanel) {
+                StockPanel.currentPanel.postMessageToWebview({
+                    type: 'feedbackResponse',
+                    data: {
+                        status: 'error',
+                        message: '提交反饋時發生錯誤'
+                    }
+                });
+            }
+        }
+    });
+    
+    context.subscriptions.push(submitFeedbackCommand);
+
+    // 在 StockPanel 中註冊消息處理
+    StockPanel.messageHandlers.set('submitFeedback', async (message: any) => {
+        try {
+            // 從消息中獲取反饋數據
+            const feedback = message.feedback;
+            
+            // 執行提交反饋命令
+            await vscode.commands.executeCommand('stockmon.submitFeedback', feedback);
+            
+        } catch (error) {
+            logger.logError(LogCategory.FEEDBACK, error, '處理反饋提交時發生錯誤');
+            if (StockPanel.currentPanel) {
+                StockPanel.currentPanel.postMessageToWebview({
+                    type: 'feedbackResponse',
+                    data: {
+                        status: 'error',
+                        message: '處理反饋提交時發生錯誤'
+                    }
+                });
+            }
+        }
+    });
+
+    // 初始化完成後檢查用戶持倉，如果為空則顯示通知提醒
+    const checkEmptyPortfolio = async () => {
+        try {
+            // 確保從全域狀態加載完成數據
+            await useStockDataStore.getState().loadFromGlobalState();
+            
+            const stockState = useStockDataStore.getState();
+            const stocksCount = stockState.stocks.length;
+            
+            logger.info(LogCategory.EXTENSION, `Portfolio check: found ${stocksCount} stocks`);
+            
+            if (stocksCount === 0) {
+                logger.info(LogCategory.EXTENSION, 'No stocks found, showing notification');
+                
+                // 顯示通知提醒用戶添加第一個持倉
+                const selection = await vscode.window.showInformationMessage(
+                    '歡迎使用 StockMon! 您目前沒有任何持倉，添加您的第一個持倉開始追踪您的投資組合。',
+                    '添加持倉'
+                );
+                
+                if (selection === '添加持倉') {
+                    logger.info(LogCategory.EXTENSION, 'User clicked on add stock notification');
+                    vscode.commands.executeCommand('stockmon.createFirstStock');
+                }
+            }
+        } catch (error) {
+            logger.logError(LogCategory.EXTENSION, error, 'Error checking stocks count');
+        }
+    };
+    
+    // 在擴展完全初始化後執行檢查
+    setTimeout(checkEmptyPortfolio, 2000); // 給予 2 秒鐘的時間讓擴展完全初始化
+
+    // 註冊命令：顯示並展開左側的 Portfolio 視圖
+    context.subscriptions.push(
+        vscode.commands.registerCommand('stockmon.showPortfolioView', async () => {
+            try {
+                logger.info(LogCategory.PORTFOLIO, 'Showing portfolio view...');
+                
+                // 刷新 portfolio 視圖
+                portfolioViewProvider.refresh();
+                
+                // 確保視圖可見並展開
+                await vscode.commands.executeCommand('stockmonPortfolio.focus');
+                
+                // 如果 StockPanel 存在，發送確認消息
+                if (StockPanel.currentPanel) {
+                    StockPanel.currentPanel.postMessageToWebview({
+                        type: 'portfolioViewShown',
+                        success: true
+                    });
+                }
+            } catch (error) {
+                logger.logError(LogCategory.PORTFOLIO, error, 'Error showing portfolio view');
+                vscode.window.showErrorMessage(`Error showing portfolio view: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+        })
+    );
+
+    // 在 StockPanel 中註冊消息處理 - 添加在其他 messageHandlers 設置下方
+    StockPanel.messageHandlers.set('showPortfolioView', async () => {
+        try {
+            // 執行顯示 Portfolio 視圖的命令
+            await vscode.commands.executeCommand('stockmon.showPortfolioView');
+        } catch (error) {
+            logger.logError(LogCategory.PORTFOLIO, error, '處理顯示 Portfolio 視圖請求時發生錯誤');
+        }
+    });
 }
 
 export function deactivate() {

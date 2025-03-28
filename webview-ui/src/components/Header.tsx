@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { WebSocketState } from '../../../src/types';
 import { VSCodeButton } from '@vscode/webview-ui-toolkit/react';
 import { vscode } from '../utilities/vscode';
@@ -8,18 +8,27 @@ interface HeaderProps {
     wsState: WebSocketState;
     sessionInfo?: {
         user?: string;
+        email?: string;
         is_authenticated: boolean;
     };
 }
 
 export const Header: React.FC<HeaderProps> = ({ wsState, sessionInfo }) => {
-    // 處理登入/登出
-    const handleAuth = () => {
-        if (sessionInfo?.is_authenticated) {
-            vscode.postMessage({ command: 'confirmLogout' });
-        } else {
-            vscode.postMessage({ command: 'login' });
-        }
+    const [showUserInfo, setShowUserInfo] = useState(false);
+    
+    // 處理登入
+    const handleLogin = () => {
+        vscode.postMessage({ command: 'login' });
+    };
+
+    // 處理登出
+    const handleLogout = () => {
+        vscode.postMessage({ command: 'confirmLogout' });
+    };
+    
+    // 處理顯示持股組合
+    const handleShowPortfolio = () => {
+        vscode.postMessage({ command: 'showPortfolioView' });
     };
 
     // WebSocket 狀態相關
@@ -38,16 +47,18 @@ export const Header: React.FC<HeaderProps> = ({ wsState, sessionInfo }) => {
 
     const connectionStatus = getConnectionStatus();
     
-    // 登入狀態相關
-    const authStatus = {
-        icon: sessionInfo?.is_authenticated ? '👤' : '🔑',
-        text: sessionInfo?.is_authenticated 
-            ? `${sessionInfo.user || 'User'}` 
-            : 'Login',
-        tooltip: sessionInfo?.is_authenticated 
-            ? `Logged in as ${sessionInfo.user || 'User'}` 
-            : 'Click to login'
+    // 獲取使用者頭像顯示
+    const getUserAvatar = () => {
+        if (!sessionInfo?.is_authenticated) {
+            return { icon: '🔑', text: '' };
+        }
+        
+        const username = sessionInfo.user || 'User';
+        const firstLetter = username.charAt(0).toUpperCase();
+        return { icon: '', text: firstLetter };
     };
+    
+    const userAvatar = getUserAvatar();
 
     return (
         <div className="header">
@@ -59,15 +70,61 @@ export const Header: React.FC<HeaderProps> = ({ wsState, sessionInfo }) => {
             </div>
             
             <div className="header-right">
+                {/* 持股管理按鈕 */}
                 <VSCodeButton 
-                    appearance="secondary" 
-                    onClick={handleAuth}
-                    title={authStatus.tooltip}
-                    className="auth-button"
+                    appearance="icon"
+                    onClick={handleShowPortfolio}
+                    title="管理您的持股"
+                    className="portfolio-button"
                 >
-                    <span className="auth-icon">{authStatus.icon}</span>
-                    <span className="auth-text">{authStatus.text}</span>
+                    <span className="button-icon">📊</span>
                 </VSCodeButton>
+                
+                {!sessionInfo?.is_authenticated ? (
+                    <VSCodeButton 
+                        appearance="icon"
+                        onClick={handleLogin}
+                        title="點擊登入"
+                        className="login-button"
+                    >
+                        <span className="button-icon">🔑</span>
+                    </VSCodeButton>
+                ) : (
+                    <>
+                        <div 
+                            className="user-avatar-container"
+                            onMouseEnter={() => setShowUserInfo(true)}
+                            onMouseLeave={() => setShowUserInfo(false)}
+                        >
+                            <div className="user-avatar">
+                                {userAvatar.text}
+                            </div>
+                            
+                            {showUserInfo && (
+                                <div className="user-info-tooltip">
+                                    <div className="tooltip-item">
+                                        <span className="tooltip-label">使用者：</span>
+                                        <span className="tooltip-value">{sessionInfo.user || 'User'}</span>
+                                    </div>
+                                    {sessionInfo.email && (
+                                        <div className="tooltip-item">
+                                            <span className="tooltip-label">電子郵件：</span>
+                                            <span className="tooltip-value">{sessionInfo.email}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        <VSCodeButton 
+                            appearance="icon"
+                            onClick={handleLogout}
+                            title="登出"
+                            className="logout-button"
+                        >
+                            <span className="button-icon">↪</span>
+                        </VSCodeButton>
+                    </>
+                )}
             </div>
         </div>
     );

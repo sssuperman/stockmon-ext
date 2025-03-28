@@ -101,27 +101,44 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     const logger = LoggerService.getInstance();
     const { authToken } = get();
     if (authToken) {
-      await axios.post(
-        urls.auth.logout,
-        {},
-        {
-          headers: {
-            'Authorization': `Bearer ${authToken}`,
-            'X-Client-UUID': get().clientUuid
+      try {
+        // 使用正確的 URL 和 headers
+        await axios.post(
+          urls.auth.logout,
+          {},
+          {
+            headers: {
+              'Authorization': `Bearer ${authToken}`,
+              'X-Client-UUID': get().clientUuid,
+              'Content-Type': 'application/json'
+            }
           }
-        }
-      );
+        );
 
-      const sessionInfo: SessionInfo = {
-        uuid: get().clientUuid,
-        is_authenticated: false,
-        channel_type: 'anonymous'
-      };
+        const sessionInfo: SessionInfo = {
+          uuid: get().clientUuid,
+          is_authenticated: false,
+          channel_type: 'anonymous'
+        };
 
-      await get().setSessionInfo(sessionInfo, context);
-      await get().setAuthToken(null, context);
-      set({ isAuthenticated: false });
-      logger.log(LogCategory.SESSION, 'Logout successful, session cleared');
+        await get().setSessionInfo(sessionInfo, context);
+        await get().setAuthToken(null, context);
+        set({ isAuthenticated: false });
+        logger.log(LogCategory.SESSION, 'Logout successful, session cleared');
+      } catch (error) {
+        // 即使登出 API 失敗，也要清除本地會話
+        logger.logError(LogCategory.SESSION, error, 'Logout API call failed, clearing session anyway');
+        
+        const sessionInfo: SessionInfo = {
+          uuid: get().clientUuid,
+          is_authenticated: false,
+          channel_type: 'anonymous'
+        };
+
+        await get().setSessionInfo(sessionInfo, context);
+        await get().setAuthToken(null, context);
+        set({ isAuthenticated: false });
+      }
     }
   },
 
