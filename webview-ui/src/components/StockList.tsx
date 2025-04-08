@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { VSCodeDivider, VSCodeButton } from '@vscode/webview-ui-toolkit/react';
-import { StockInventory, IndiceData } from '../../../src/types';
+import { StockInventory, IndiceData, CandleData } from '../../../src/types';
 import { vscode } from '../utilities/vscode';
 import './StockList.css';
 import { BsGrid3X3GapFill, BsTable, BsPlusCircle } from 'react-icons/bs';
@@ -35,6 +35,12 @@ export const StockList: React.FC<StockListProps> = ({
     const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
     // 添加用於保存拖拽後的股票順序
     const [tableData, setTableData] = useState<StockInventory[]>([]);
+    // 添加 K 線數據狀態
+    const [klineData, setKlineData] = useState<Record<string, CandleData[]>>({});
+    // 添加加載中狀態
+    const [loadingKline, setLoadingKline] = useState<boolean>(false);
+    // 添加最後更新時間
+    const [lastKlineUpdate, setLastKlineUpdate] = useState<number>(0);
 
     useEffect(() => {
         // 檢查是否有新的或更新的股票
@@ -105,6 +111,64 @@ export const StockList: React.FC<StockListProps> = ({
         setTableData([...stocks]);
     }, [stocks]);
 
+    // 添加獲取 K 線數據的函數
+    const fetchKlineData = async () => {
+        // 如果沒有股票或正在加載，則直接返回
+        if (stocks.length === 0 || loadingKline) return;
+        
+        // 更新加載狀態
+        setLoadingKline(true);
+        
+        try {
+            // 獲取所有股票的 symbol
+            const symbols = stocks.map(stock => stock.symbol);
+            
+            // 向 vscode 發送消息，請求獲取 K 線數據
+            vscode.postMessage({ 
+                command: 'getMultipleStock5mCandles',
+                symbols: symbols
+            });
+            
+            // 設置最後更新時間
+            setLastKlineUpdate(Date.now());
+        } catch (error) {
+            console.error('Failed to fetch kline data:', error);
+        } finally {
+            setLoadingKline(false);
+        }
+    };
+
+    // 監聽 vscode 消息，接收 K 線數據
+    useEffect(() => {
+        const messageHandler = (event: MessageEvent) => {
+            const message = event.data;
+            
+            // 處理 K 線數據
+            if (message.command === 'klineDataResponse') {
+                console.log('Received kline data:', message.data);
+                setKlineData(message.data);
+                setLoadingKline(false);
+            }
+        };
+        
+        // 添加事件監聽器
+        window.addEventListener('message', messageHandler);
+        
+        // 在 viewMode 為 card 時獲取 K 線數據
+        if (viewMode === 'card' && stocks.length > 0) {
+            // 只有當超過 5 分鐘沒有更新 K 線數據時，才再次獲取
+            const now = Date.now();
+            if (now - lastKlineUpdate > 5 * 60 * 1000) {
+                fetchKlineData();
+            }
+        }
+        
+        // 清理事件監聽器
+        return () => {
+            window.removeEventListener('message', messageHandler);
+        };
+    }, [viewMode, stocks, lastKlineUpdate]);
+
     // 添加調試信息輸出
     useEffect(() => {
         console.log('StockList received twseIndex:', twseIndex);
@@ -144,6 +208,11 @@ export const StockList: React.FC<StockListProps> = ({
     // 處理添加股票按鈕點擊
     const handleAddStock = () => {
         vscode.postMessage({ command: 'addStock' });
+    };
+
+    // 手動刷新 K 線數據
+    const handleRefreshKline = () => {
+        fetchKlineData();
     };
 
     // 空狀態顯示組件
@@ -217,6 +286,9 @@ export const StockList: React.FC<StockListProps> = ({
                         handleSetCost={handleSetCost}
                         handleSetAlert={handleSetAlert}
                         handleDelete={handleDelete}
+                        klineData={klineData}
+                        loadingKline={loadingKline}
+                        handleRefreshKline={handleRefreshKline}
                     />
                 ) : (
                     <TableView 

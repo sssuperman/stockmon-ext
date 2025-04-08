@@ -88,7 +88,9 @@ export const urls = {
         synchronize: `${config.API_BASE_URL}/sync/synchronize`,
         syncStatus: `${config.API_BASE_URL}/sync/status`,
         conflicts: `${config.API_BASE_URL}/sync/conflicts`,
-        resolveConflict: `${config.API_BASE_URL}/sync/resolve-conflict`
+        resolveConflict: `${config.API_BASE_URL}/sync/resolve-conflict`,
+        candles5m: (symbol: string) => `${config.API_BASE_URL}/stocks/${symbol}/candles/5m`,
+        multiCandles5m: `${config.API_BASE_URL}/stocks/candles/multi/5m/async`
     },
     alerts: {
         list: `${config.API_BASE_URL}/user/alerts`,
