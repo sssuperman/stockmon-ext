@@ -243,6 +243,17 @@ export interface ConflictResolutionData {
   client_uuid?: string;
 }
 
+export interface CandleData {
+  timestamp: string;      // 時間戳
+  timeframe: string;      // 時間週期
+  open_price: number;     // 開盤價
+  high_price: number;     // 最高價
+  low_price: number;      // 最低價
+  close_price: number;    // 收盤價
+  volume: number;         // 成交量
+  amount: number;         // 成交金額
+}
+
 export interface IndiceData {
   symbol: string;
   name: string;

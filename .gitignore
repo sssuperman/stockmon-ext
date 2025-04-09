@@ -39,3 +39,6 @@ Thumbs.db
 
 # Test coverage
 coverage/ 
+
+# Webview UI build files
+webview-ui/build/assets/*

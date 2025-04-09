@@ -202,6 +202,43 @@ export class StockPanel {
                             sessionInfo: sessionState.sessionInfo
                         });
                         break;
+                    case 'getMultipleStock5mCandles':
+                        try {
+                            StockPanel.logger.log(LogCategory.PANEL, `Received request for 5-min candles for ${message.symbols.length} stocks`);
+                            const { symbols } = message;
+                            
+                            if (!symbols || !Array.isArray(symbols) || symbols.length === 0) {
+                                this._panel.webview.postMessage({
+                                    command: 'klineDataResponse',
+                                    data: {},
+                                    error: '無效的股票代號列表'
+                                });
+                                break;
+                            }
+                            
+                            let symbolsToFetch = symbols;
+                            if (symbols.length > 20) {
+                                StockPanel.logger.warning(LogCategory.PANEL, `請求股票數量過多，最多同時請求 20 支股票，當前請求 ${symbols.length} 支`);
+                                symbolsToFetch = symbols.slice(0, 20);
+                            }
+                            
+                            const klineData = await useStockDataStore.getState().getMultipleStock5mCandles(symbolsToFetch);
+                            
+                            this._panel.webview.postMessage({
+                                command: 'klineDataResponse',
+                                data: klineData
+                            });
+                            
+                            StockPanel.logger.log(LogCategory.PANEL, `已發送 ${Object.keys(klineData).length} 支股票的K線數據`);
+                        } catch (error) {
+                            StockPanel.logger.logError(LogCategory.PANEL, error, '獲取K線數據時發生錯誤');
+                            this._panel.webview.postMessage({
+                                command: 'klineDataResponse',
+                                data: {},
+                                error: error instanceof Error ? error.message : '獲取K線數據時發生未知錯誤'
+                            });
+                        }
+                        break;
                     case 'getIndices':
                         // 發送指數數據
                         const indiceState = useIndiceDataStore.getState();
