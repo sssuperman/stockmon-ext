@@ -210,8 +210,12 @@ export class PortfolioViewProvider implements vscode.TreeDataProvider<StockItem 
             // 按照是否有成本數據和股票代碼排序
             const sortedStocks = [...stocks].sort((a, b) => {
                 // 首先按照是否有成本數據排序
-                if (a.cost && !b.cost) return -1;
-                if (!a.cost && b.cost) return 1;
+                if (a.cost && !b.cost) {
+                    return -1;
+                }
+                if (!a.cost && b.cost) {
+                    return 1;
+                }
                 
                 // 然後按照股票代碼排序
                 return a.symbol.localeCompare(b.symbol);

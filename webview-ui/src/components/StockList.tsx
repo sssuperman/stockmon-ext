@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { VSCodeDivider, VSCodeButton } from '@vscode/webview-ui-toolkit/react';
-import { StockInventory, IndiceData, CandleData } from '../../../src/types';
+import { StockInventory, IndiceData, CandleData } from '../types';
 import { vscode } from '../utilities/vscode';
 import './StockList.css';
 import { BsGrid3X3GapFill, BsTable, BsPlusCircle } from 'react-icons/bs';

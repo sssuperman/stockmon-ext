@@ -1,43 +1,5 @@
-// Check if we're in a webview context
-declare const acquireVsCodeApi: Function;
-
-// Define vscode types for TypeScript
-declare namespace vscode {
-    export interface OutputChannel {
-        appendLine(value: string): void;
-        show(): void;
-        clear(): void;
-        dispose(): void;
-    }
-    export interface ExtensionContext {
-        subscriptions: { dispose(): any }[];
-    }
-    export namespace window {
-        export function createOutputChannel(name: string): OutputChannel;
-    }
-}
-
-let vscodeApi: typeof vscode;
-try {
-    // This will throw an error in webview context
-    vscodeApi = require('vscode');
-} catch (e) {
-    // In webview context, we don't need vscode module
-    console.warn('vscode module not available - running in webview context');
-    vscodeApi = {
-        window: {
-            createOutputChannel: (name: string) => ({
-                appendLine: console.log,
-                show: () => {},
-                clear: () => {},
-                dispose: () => {}
-            })
-        }
-    };
-}
-
 /**
- * Log levels for the StockMon extension
+ * Log levels for the StockMon extension (webview version)
  */
 export enum LogLevel {
     DEBUG = 0,
@@ -46,17 +8,32 @@ export enum LogLevel {
     ERROR = 3
 }
 
+// Same categories as the extension version
+export enum LogCategory {
+    SESSION = 'Session',
+    WEBSOCKET = 'WebSocket',
+    PANEL = 'Panel',
+    EXTENSION = 'Extension',
+    STOCK_DATA = 'StockData',
+    SYNC = 'Sync',
+    AUTH = 'Auth',
+    PORTFOLIO = 'Portfolio',
+    API = 'API',
+    INDICE_DATA = 'IndiceData',
+    FEEDBACK = 'Feedback'
+}
+
 /**
- * Centralized logging service for the StockMon extension
- * Manages a single OutputChannel with categorized logging and different log levels
+ * Simplified logging service for the webview UI
+ * Uses console.log instead of OutputChannel
  */
 export class LoggerService {
     private static instance: LoggerService;
-    private outputChannel: vscode.OutputChannel;
     private logLevel: LogLevel = LogLevel.INFO; // Default log level
     
     private constructor() {
-        this.outputChannel = vscodeApi.window.createOutputChannel('StockMon');
+        // No OutputChannel needed for webview
+        console.log('[LOGGER] Webview LoggerService initialized');
     }
     
     /**
@@ -77,17 +54,12 @@ export class LoggerService {
         const oldLevel = this.logLevel;
         this.logLevel = level;
         
-        // 始終顯示日誌級別變更信息，無論當前級別如何
+        // Always log level changes regardless of current level
         const timestamp = new Date().toISOString();
         const levelStr = LogLevel[level];
-        this.outputChannel.appendLine(
+        console.log(
             `[${timestamp}] [INFO] [LOGGER] Log level changed from ${LogLevel[oldLevel]} (${oldLevel}) to ${levelStr} (${level})`
         );
-        
-        // 如果設置為 DEBUG，顯示一些額外的調試信息
-        if (level === LogLevel.DEBUG) {
-            this.debug(LogCategory.EXTENSION, 'Debug logging enabled - you will see more detailed logs');
-        }
     }
     
     /**
@@ -109,7 +81,22 @@ export class LoggerService {
         if (level >= this.logLevel) {
             const timestamp = new Date().toISOString();
             const levelStr = LogLevel[level];
-            this.outputChannel.appendLine(`[${timestamp}] [${levelStr}] [${category}] ${message}`);
+            const logMessage = `[${timestamp}] [${levelStr}] [${category}] ${message}`;
+            
+            switch (level) {
+                case LogLevel.DEBUG:
+                    console.debug(logMessage);
+                    break;
+                case LogLevel.INFO:
+                    console.info(logMessage);
+                    break;
+                case LogLevel.WARNING:
+                    console.warn(logMessage);
+                    break;
+                case LogLevel.ERROR:
+                    console.error(logMessage);
+                    break;
+            }
         }
     }
     
@@ -154,50 +141,4 @@ export class LoggerService {
         const additionalText = additionalInfo ? `\nAdditional info: ${additionalInfo}` : '';
         this.log(category, `ERROR: ${errorMessage}${additionalText}`, LogLevel.ERROR);
     }
-    
-    /**
-     * Show the output channel
-     */
-    public show(): void {
-        this.outputChannel.show();
-    }
-    
-    /**
-     * Clear the output channel
-     */
-    public clear(): void {
-        this.outputChannel.clear();
-    }
-    
-    /**
-     * Dispose the output channel
-     */
-    public dispose(): void {
-        this.outputChannel.dispose();
-    }
-    
-    /**
-     * Register the output channel with the extension context
-     * @param context The extension context
-     */
-    public register(context: vscode.ExtensionContext): void {
-        context.subscriptions.push(this.outputChannel);
-    }
-}
-
-// Common categories for consistent logging
-export enum LogCategory {
-    SESSION = 'Session',
-    WEBSOCKET = 'WebSocket',
-    PANEL = 'Panel',
-    EXTENSION = 'Extension',
-    STOCK_DATA = 'StockData',
-    SYNC = 'Sync',
-    AUTH = 'Auth',
-    PORTFOLIO = 'Portfolio',
-    API = 'API',
-    INDICE_DATA = 'IndiceData',
-    FEEDBACK = 'Feedback',
-    COMMAND = 'Command',
-    ALERT = 'Alert'
 } 

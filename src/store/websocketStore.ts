@@ -9,6 +9,48 @@ import { OutputChannel } from 'vscode';
 import { useSessionStore } from './sessionStore';
 import { ExtensionContextManager } from '../utilities/contextManager';
 import { LoggerService, LogCategory, LogLevel } from '../utilities/loggerService';
+import { updateTwseIndex, updateStock } from './stockDataStoreActionsSubscribe';
+import { useAlertStore, AlertTypeEnum } from './alertStore';
+
+// 定義事件系統
+export const WebSocketEvents = {
+  STOCK_ALERT_RECEIVED: 'stock_alert_received',
+  eventListeners: new Map<string, Function[]>(),
+  
+  // 添加事件監聽器
+  addEventListener(event: string, callback: Function) {
+    if (!this.eventListeners.has(event)) {
+      this.eventListeners.set(event, []);
+    }
+    this.eventListeners.get(event)?.push(callback);
+    return () => this.removeEventListener(event, callback); // 返回取消訂閱函數
+  },
+  
+  // 移除事件監聽器
+  removeEventListener(event: string, callback: Function) {
+    const listeners = this.eventListeners.get(event);
+    if (listeners) {
+      const index = listeners.indexOf(callback);
+      if (index !== -1) {
+        listeners.splice(index, 1);
+      }
+    }
+  },
+  
+  // 發布事件
+  dispatchEvent(event: string, data: any) {
+    const listeners = this.eventListeners.get(event);
+    if (listeners) {
+      listeners.forEach(callback => {
+        try {
+          callback(data);
+        } catch (error) {
+          console.error(`Error executing listener for event ${event}:`, error);
+        }
+      });
+    }
+  }
+};
 
 interface WebSocketStoreState {
   wsState: WebSocketState;
@@ -34,6 +76,10 @@ interface WebSocketStoreState {
     predicate: (message: any) => boolean,
     timeout: number
   ) => Promise<T>;
+  subscribeAlert: () => void;
+  unsubscribeAlert: () => void;
+  getAlertSubscribed: () => Promise<string[]>;
+  lastAlertFetchTime?: number;
 }
 
 export const useWebSocketStore = create<WebSocketStoreState>((set, get) => ({
@@ -47,6 +93,7 @@ export const useWebSocketStore = create<WebSocketStoreState>((set, get) => ({
   extendedReconnectInterval: 10000,
   reconnectTimeoutId: undefined,
   pingIntervalId: undefined,
+  lastAlertFetchTime: undefined,
 
   connect: (loggerOrOutputChannel?: LoggerService | OutputChannel) => {
     const { socket, reconnectAttempts } = get();
@@ -207,10 +254,10 @@ export const useWebSocketStore = create<WebSocketStoreState>((set, get) => ({
 
                 if (message.symbol === 'IX0001') {
                   logger.log(LogCategory.WEBSOCKET, 'Updating TWSE index in store');
-                  useStockDataStore.getState().updateTwseIndex(stockData);
+                  updateTwseIndex(stockData);
                   logger.log(LogCategory.WEBSOCKET, `Updated TWSE index: ${JSON.stringify(stockData)}`);
                 } else {
-                  useStockDataStore.getState().updateStock(stockData);
+                  updateStock(stockData);
                 }
                 logger.debug(LogCategory.WEBSOCKET, `WebSocketStore Updated data for ${stockData.symbol}`);
                 break;
@@ -241,6 +288,134 @@ export const useWebSocketStore = create<WebSocketStoreState>((set, get) => ({
                 break;
               case 'unsubscription_success':
                 logger.log(LogCategory.WEBSOCKET, `WebSocketStore Unsubscribe successful: ${message.symbols?.join(', ')}`);
+                break;
+              case 'alert_subscription_success':
+                logger.log(LogCategory.WEBSOCKET, 'Alert subscription successful');
+                break;
+              case 'alert_unsubscription_success':
+                logger.log(LogCategory.WEBSOCKET, 'Alert unsubscription successful');
+                break;
+              case 'alert_subscribed_symbols':
+                logger.log(LogCategory.WEBSOCKET, `Alert subscribed symbols: ${message.symbols?.join(', ') || 'none'}`);
+                break;
+              case 'stock_alert':
+                logger.log(LogCategory.WEBSOCKET, `Received stock alert: ${JSON.stringify(message)}`);
+                // 如果有警報處理邏輯，應該在這裡處理
+                // 例如更新 stockDataStore 中的股票警報狀態或者顯示通知
+                if (message.symbol && message.alert_type) {
+                  // 可以擴展此部分以處理不同類型的警報
+                  useStockDataStore.getState().addAlertToStock(
+                    message.symbol, 
+                    {
+                      type: message.alert_type,
+                      message: message.message || '',
+                      timestamp: new Date().toISOString(),
+                      id: message.id || `alert-${Date.now()}`
+                    }
+                  );
+                }
+                break;
+              case 'stock_alerts':
+                logger.log(LogCategory.WEBSOCKET, `Received stock alerts message: ${JSON.stringify(message)}`);
+                // 處理多個股票警報
+                if (message.alerts && Array.isArray(message.alerts)) {
+                  message.alerts.forEach((alert: {
+                    id?: string | number;
+                    alert_id?: number;
+                    stock?: { symbol: string; name?: string };
+                    symbol?: string;
+                    name?: string;
+                    alert_rule?: { alert_type: string; threshold?: number; parameters?: any };
+                    alert_type?: string;
+                    threshold?: number;
+                    current_value?: number;
+                    price?: number;
+                    change_percent?: number;
+                    message?: string;
+                    time?: string;
+                    triggered_at?: string;
+                    test?: boolean;
+                    // 添加後端新增的時間字段
+                    timestamp?: number;
+                    timezone?: string;
+                    formatted_time?: string;
+                  }) => {
+                    // 判斷是舊格式還是新格式
+                    const symbol = alert.stock?.symbol || alert.symbol;
+                    const alertType = alert.alert_rule?.alert_type || alert.alert_type;
+                    const alertId = alert.id || alert.alert_id || `alert-${Date.now()}`;
+                    const threshold = alert.alert_rule?.threshold || alert.threshold;
+                    
+                    // 處理時間戳，優先使用後端提供的時間格式
+                    const timestamp = alert.timestamp ? new Date(alert.timestamp).toISOString() : 
+                              alert.triggered_at || alert.time || new Date().toISOString();
+                    
+                    // 格式化時間字符串，優先使用後端提供的
+                    const formattedTime = alert.formatted_time || 
+                              (timestamp ? new Date(timestamp).toLocaleString() : new Date().toLocaleString());
+                    
+                    if (symbol && alertType) {
+                      // 添加到股票資料中
+                      useStockDataStore.getState().addAlertToStock(
+                        symbol,
+                        {
+                          type: alertType,
+                          message: alert.message || `${alert.name || symbol} 價格 ${alert.price} (${alert.change_percent}%)`,
+                          timestamp,
+                          id: String(alertId),
+                          threshold,
+                          currentValue: alert.current_value,
+                          price: alert.price,
+                          formattedTime // 添加格式化的時間
+                        }
+                      );
+                      
+                      // 更新 alertStore 中的提醒歷史
+                      const isAuthenticated = useSessionStore.getState().isAuthenticated;
+                      if (isAuthenticated && !alert.test) {
+                        try {
+                          // 只在特定時間間隔內更新提醒列表，避免頻繁請求
+                          // 獲取上次提醒列表更新時間
+                          const lastAlertFetchTime = get().lastAlertFetchTime || 0;
+                          const now = Date.now();
+                          
+                          // 如果距離上次更新超過10秒，才重新獲取
+                          if (now - lastAlertFetchTime > 10000) {
+                            useAlertStore.getState().fetchAlerts().then(() => {
+                              logger.log(LogCategory.WEBSOCKET, `已更新提醒列表`);
+                              // 更新時間戳
+                              set({ lastAlertFetchTime: now });
+                            });
+                          } else {
+                            logger.debug(LogCategory.WEBSOCKET, `跳過提醒列表更新：距上次更新僅 ${(now - lastAlertFetchTime) / 1000} 秒`);
+                          }
+                          
+                          // 警報歷史記錄暫時不自動獲取，避免大量 API 請求
+                          // 用戶可以在警報頁面手動加載歷史記錄
+                        } catch (err) {
+                          logger.log(LogCategory.WEBSOCKET, `更新提醒列表失敗: ${err}`);
+                        }
+                      }
+                      
+                      // 發布提醒事件
+                      WebSocketEvents.dispatchEvent(WebSocketEvents.STOCK_ALERT_RECEIVED, {
+                        id: alertId,
+                        symbol,
+                        name: alert.name || alert.stock?.name || symbol,
+                        alertType,
+                        message: alert.message || `價格 ${alert.price} (${alert.change_percent}%)`,
+                        threshold,
+                        currentValue: alert.current_value,
+                        price: alert.price,
+                        timestamp,
+                        formattedTime, // 添加格式化的時間
+                        timezone: alert.timezone // 添加時區信息
+                      });
+                      
+                      logger.log(LogCategory.WEBSOCKET, `股票提醒已添加到股票資料: ${symbol}, 類型: ${alertType}, 時間: ${formattedTime}`);
+                    }
+                  });
+                }
                 break;
               case 'pong':
                 logger.log(LogCategory.WEBSOCKET, 'WebSocketStore Received pong');
@@ -350,6 +525,63 @@ export const useWebSocketStore = create<WebSocketStoreState>((set, get) => ({
     if (currentState !== state) {
       const { logger } = get();
       set({ wsState: state });
+    }
+  },
+
+  // 訂閱股票警報
+  subscribeAlert: () => {
+    const { socket, logger } = get();
+    if (socket?.readyState === WebSocket.OPEN) {
+      const message = { action: 'subscribe_alert' };
+      const messageStr = JSON.stringify(message);
+      socket.send(messageStr);
+      if (logger) {
+        logger.log(LogCategory.WEBSOCKET, `Sent alert subscription: ${messageStr}`);
+      }
+    } else {
+      if (logger) {
+        logger.log(LogCategory.WEBSOCKET, 'Cannot subscribe to alerts: WebSocket not connected');
+      }
+    }
+  },
+
+  // 取消訂閱股票警報
+  unsubscribeAlert: () => {
+    const { socket, logger } = get();
+    if (socket?.readyState === WebSocket.OPEN) {
+      const message = { action: 'unsubscribe_alert' };
+      const messageStr = JSON.stringify(message);
+      socket.send(messageStr);
+      if (logger) {
+        logger.log(LogCategory.WEBSOCKET, `Sent alert unsubscription: ${messageStr}`);
+      }
+    } else {
+      if (logger) {
+        logger.log(LogCategory.WEBSOCKET, 'Cannot unsubscribe from alerts: WebSocket not connected');
+      }
+    }
+  },
+
+  // 獲取當前訂閱的警報股票
+  getAlertSubscribed: async () => {
+    const { socket, logger } = get();
+    if (socket?.readyState === WebSocket.OPEN) {
+      try {
+        const message = { action: 'get_alert_subscribed' };
+        const response = await get().sendAndWait(
+          message,
+          (msg) => msg.type === 'alert_subscribed_symbols',
+          5000
+        );
+        logger?.log(LogCategory.WEBSOCKET, `Received alert subscribed symbols: ${JSON.stringify(response)}`);
+        return response.symbols || [];
+      } catch (error) {
+        logger?.logError(LogCategory.WEBSOCKET, error, 'Error getting alert subscribed symbols');
+        return [];
+      }
+    } else {
+      logger?.log(LogCategory.WEBSOCKET, 'Cannot get alert subscribed symbols: WebSocket not connected');
+      return [];
     }
   },
 

@@ -23,7 +23,9 @@ export function parseJwt(token: string): JwtPayload {
 export function isTokenExpired(token: string): boolean {
     try {
         const payload = parseJwt(token);
-        if (!payload.exp) return true;
+        if (!payload.exp) {
+            return true;
+        }
         
         // exp is in seconds, Date.now() is in milliseconds
         const now = Date.now() / 1000;

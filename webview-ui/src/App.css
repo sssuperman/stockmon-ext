@@ -453,4 +453,50 @@
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-10px); }
     to { opacity: 1; transform: translateY(0); }
+}
+
+/* Tab選擇器樣式 */
+.tab-selector {
+    display: flex;
+    gap: 2px;
+    background-color: var(--vscode-editor-background);
+    border-radius: 4px;
+    margin: 12px 0;
+    border-bottom: 1px solid var(--vscode-panel-border);
+    overflow: hidden;
+    will-change: transform;
+}
+
+.tab-button {
+    padding: 10px 16px;
+    background: none;
+    border: none;
+    color: var(--vscode-foreground);
+    font-size: 14px;
+    cursor: pointer;
+    position: relative;
+    border-bottom: 2px solid transparent;
+    transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+    will-change: transform, background-color;
+    -webkit-font-smoothing: antialiased;
+    transform: translateZ(0);
+}
+
+.tab-button:hover {
+    background-color: var(--vscode-list-hoverBackground);
+    transform: translateZ(0);
+}
+
+.tab-button.active {
+    color: var(--vscode-button-foreground);
+    border-bottom-color: var(--vscode-button-background);
+    font-weight: 500;
+    transform: translateZ(0);
+}
+
+@media (max-width: 480px) {
+    .tab-button {
+        padding: 8px 12px;
+        font-size: 13px;
+    }
 } 

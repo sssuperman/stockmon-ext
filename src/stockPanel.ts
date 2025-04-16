@@ -2,13 +2,15 @@ import * as vscode from 'vscode';
 import { useWebSocketStore } from './store/websocketStore';
 import { useStockDataStore } from './store/stockDataStore';
 import { useIndiceDataStore } from './store/indiceDataStore';
+import { useAlertStore } from './store/alertStore';
 import { getNonce } from './utilities/getNonce';
 import { getUri } from './utilities/getUri';
 import { channel } from 'diagnostics_channel';
 import { StockInventory } from './types';
 import { LoggerService, LogCategory } from './utilities/loggerService';
 import { useSessionStore } from './store/sessionStore';
-
+import { removeStock } from './store/stockDataActionUserStock';
+import { getMultipleStock5mCandles } from './store/stockDataStoreActionCandles';
 export class StockPanel {
     private static logger = LoggerService.getInstance();
     public static currentPanel: StockPanel | undefined;
@@ -17,6 +19,7 @@ export class StockPanel {
     private _disposables: vscode.Disposable[] = [];
     private _unsubscribeStockStore?: () => void;
     private _unsubscribeIndiceStore?: () => void;
+    private _unsubscribeAlertStore?: () => void;
 
     /**
      * 創建或顯示 StockPanel
@@ -96,7 +99,10 @@ export class StockPanel {
         // 獲取指數數據
         const initialIndices = useIndiceDataStore.getState().indices;
         
-        StockPanel.logger.log(LogCategory.PANEL, `Sending initial data to webview - stocks: ${initialStocks.length}, has index: ${!!initialTwseIndex}, indices: ${Object.keys(initialIndices).length}`);
+        // 獲取提醒數據
+        const initialAlerts = useAlertStore.getState().alerts || [];
+        
+        StockPanel.logger.log(LogCategory.PANEL, `Sending initial data to webview - stocks: ${initialStocks.length}, has index: ${!!initialTwseIndex}, indices: ${Object.keys(initialIndices).length}, alerts: ${initialAlerts.length}`);
         
         // Get session info
         const sessionInfo = useSessionStore.getState().sessionInfo;
@@ -107,7 +113,8 @@ export class StockPanel {
             stocks: initialStocks,
             twseIndex: initialTwseIndex,
             sessionInfo: sessionInfo,
-            indices: initialIndices
+            indices: initialIndices,
+            alerts: initialAlerts
         });
 
         // 訂閱 store 更新 - 確保數據格式正確
@@ -150,6 +157,19 @@ export class StockPanel {
                     this._panel.webview.postMessage({
                         type: 'updateSessionInfo',
                         sessionInfo: state.sessionInfo
+                    });
+                }
+            }
+        );
+
+        // 訂閱 alert store 更新
+        this._unsubscribeAlertStore = useAlertStore.subscribe(
+            (state) => {
+                if (this._panel.visible) {
+                    StockPanel.logger.debug(LogCategory.PANEL, `Alerts updated - sending to panel - alerts: ${state.alerts.length}`);
+                    this._panel.webview.postMessage({
+                        type: 'updateAlerts',
+                        alerts: state.alerts
                     });
                 }
             }
@@ -202,6 +222,133 @@ export class StockPanel {
                             sessionInfo: sessionState.sessionInfo
                         });
                         break;
+                    case 'addAlert':
+                        // 處理添加提醒命令，顯示提醒設置視窗
+                        vscode.commands.executeCommand('stockmon.addAlert');
+                        break;
+                    case 'confirmDeleteAlert':
+                        // 確認刪除提醒操作
+                        const resultDeleteAlert = await vscode.window.showWarningMessage(
+                            `確定要刪除提醒嗎？`,
+                            { modal: true },
+                            '確定',
+                            '取消'
+                        );
+                        
+                        if (resultDeleteAlert === '確定') {
+                            try {
+                                // 執行刪除提醒操作
+                                const sessionStore = useSessionStore.getState();
+                                
+                                // 檢查是否已登入並有授權令牌
+                                if (!sessionStore.isAuthenticated || !sessionStore.authToken) {
+                                    vscode.window.showErrorMessage('請先登入以刪除提醒');
+                                    return;
+                                }
+                                
+                                StockPanel.logger.log(LogCategory.PANEL, `正在刪除提醒 ID: ${message.alertId}`);
+                                
+                                // 確保使用 alertStore 方法，它會自動添加正確的驗證頭
+                                const deleteResult = await useAlertStore.getState().deleteAlert(message.alertId);
+                                
+                                if (deleteResult) {
+                                    vscode.window.showInformationMessage('提醒已成功刪除');
+                                    // 更新UI
+                                    this._panel.webview.postMessage({
+                                        type: 'updateAlerts',
+                                        alerts: useAlertStore.getState().alerts
+                                    });
+                                } else {
+                                    throw new Error('刪除提醒失敗');
+                                }
+                            } catch (error) {
+                                StockPanel.logger.logError(LogCategory.PANEL, error, `刪除提醒失敗`);
+                                vscode.window.showErrorMessage(
+                                    `刪除提醒失敗: ${error instanceof Error ? error.message : '未知錯誤'}`
+                                );
+                            }
+                        }
+                        break;
+                    case 'editAlert':
+                        // 處理編輯提醒
+                        try {
+                            const alertId = message.alertId;
+                            if (!alertId) {
+                                vscode.window.showErrorMessage('提醒ID無效');
+                                break;
+                            }
+                            
+                            const sessionStore = useSessionStore.getState();
+                            // 檢查是否已登入並有授權令牌
+                            if (!sessionStore.isAuthenticated || !sessionStore.authToken) {
+                                vscode.window.showErrorMessage('請先登入以編輯提醒');
+                                return;
+                            }
+
+                            StockPanel.logger.log(LogCategory.PANEL, `正在獲取提醒詳情 ID: ${alertId}`);
+                            
+                            // 嘗試從本地 store 獲取提醒，如果找不到再通過 API 獲取
+                            let alertToEdit = useAlertStore.getState().alerts.find(alert => alert.id === alertId);
+                            
+                            if (alertToEdit) {
+                                StockPanel.logger.log(LogCategory.PANEL, `在本地找到提醒 ID: ${alertId}`);
+                                vscode.commands.executeCommand('stockmon.editAlert', alertToEdit);
+                                return;
+                            }
+                            
+                            StockPanel.logger.log(LogCategory.PANEL, `本地未找到提醒，將通過 API 獲取 ID: ${alertId}`);
+                            
+                            // 通過 API 獲取最新提醒詳情
+                            const alertDetail = await useAlertStore.getState().fetchAlertById(alertId);
+                            
+                            if (!alertDetail) {
+                                throw new Error(`無法找到ID為 ${alertId} 的提醒`);
+                            }
+
+                            // 執行編輯提醒命令，傳遞提醒數據
+                            vscode.commands.executeCommand('stockmon.editAlert', alertDetail);
+                        } catch (error) {
+                            StockPanel.logger.logError(LogCategory.PANEL, error, `編輯提醒失敗`);
+                            vscode.window.showErrorMessage(
+                                `編輯提醒失敗: ${error instanceof Error ? error.message : '未知錯誤'}`
+                            );
+                        }
+                        break;
+                    case 'resetAlert':
+                        // 處理重置提醒
+                        try {
+                            const resetAlertId = message.alertId;
+                            const sessionStore = useSessionStore.getState();
+                            
+                            // 檢查是否已登入並有授權令牌
+                            if (!sessionStore.isAuthenticated || !sessionStore.authToken) {
+                                vscode.window.showErrorMessage('請先登入以重置提醒');
+                                return;
+                            }
+                            
+                            StockPanel.logger.log(LogCategory.PANEL, `正在重置提醒 ID: ${resetAlertId}`);
+                            
+                            // 使用 alertStore 的 resetAlert 方法
+                            const resetResult = await useAlertStore.getState().resetAlert(resetAlertId);
+                            
+                            if (resetResult) {
+                                vscode.window.showInformationMessage('提醒已成功重置');
+                                
+                                // 更新UI
+                                this._panel.webview.postMessage({
+                                    type: 'updateAlerts',
+                                    alerts: useAlertStore.getState().alerts
+                                });
+                            } else {
+                                throw new Error('重置提醒失敗');
+                            }
+                        } catch (error) {
+                            StockPanel.logger.logError(LogCategory.PANEL, error, `重置提醒失敗`);
+                            vscode.window.showErrorMessage(
+                                `重置提醒失敗: ${error instanceof Error ? error.message : '未知錯誤'}`
+                            );
+                        }
+                        break;
                     case 'getMultipleStock5mCandles':
                         try {
                             StockPanel.logger.log(LogCategory.PANEL, `Received request for 5-min candles for ${message.symbols.length} stocks`);
@@ -222,14 +369,14 @@ export class StockPanel {
                                 symbolsToFetch = symbols.slice(0, 20);
                             }
                             
-                            const klineData = await useStockDataStore.getState().getMultipleStock5mCandles(symbolsToFetch);
+                            const klineData = await getMultipleStock5mCandles(symbolsToFetch);
                             
                             this._panel.webview.postMessage({
                                 command: 'klineDataResponse',
                                 data: klineData
                             });
                             
-                            StockPanel.logger.log(LogCategory.PANEL, `已發送 ${Object.keys(klineData).length} 支股票的K線數據`);
+                            StockPanel.logger.debug(LogCategory.PANEL, `已發送 ${Object.keys(klineData).length} 支股票的K線數據`);
                         } catch (error) {
                             StockPanel.logger.logError(LogCategory.PANEL, error, '獲取K線數據時發生錯誤');
                             this._panel.webview.postMessage({
@@ -256,7 +403,7 @@ export class StockPanel {
                         });
                         break;
                     case 'deleteStock':
-                        useStockDataStore.getState().removeStock(message.symbol);
+                        await removeStock(message.symbol);
                         this._panel.webview.postMessage({
                             type: 'updateStocks',
                             stocks: useStockDataStore.getState().stocks
@@ -272,7 +419,7 @@ export class StockPanel {
                         
                         if (result === '確定') {
                             try {
-                                await useStockDataStore.getState().removeStock(message.symbol);
+                                await removeStock(message.symbol);
                                 this._panel.webview.postMessage({
                                     type: 'updateStocks',
                                     stocks: useStockDataStore.getState().stocks
@@ -302,6 +449,140 @@ export class StockPanel {
                             vscode.commands.executeCommand('stockmon.logout');
                         }
                         break;
+                    case 'getAlerts':
+                        // 發送提醒數據
+                        const alertState = useAlertStore.getState();
+                        StockPanel.logger.log(LogCategory.PANEL, `Responding to getAlerts - sending ${alertState.alerts.length} alerts`);
+                        this._panel.webview.postMessage({
+                            type: 'updateAlerts',
+                            alerts: alertState.alerts
+                        });
+                        break;
+                    case 'fetchAlerts':
+                        // 獲取最新提醒列表
+                        useAlertStore.getState().fetchAlerts().then(() => {
+                            const updatedAlerts = useAlertStore.getState().alerts;
+                            StockPanel.logger.log(LogCategory.PANEL, `Fetched ${updatedAlerts.length} alerts from API`);
+                            this._panel.webview.postMessage({
+                                type: 'updateAlerts',
+                                alerts: updatedAlerts
+                            });
+                        }).catch(error => {
+                            StockPanel.logger.logError(LogCategory.PANEL, error, '獲取提醒列表失敗');
+                        });
+                        break;
+                    case 'createAlert':
+                        // 創建新提醒
+                        useAlertStore.getState().createAlert(message.alertData).then(newAlert => {
+                            if (newAlert) {
+                                StockPanel.logger.log(LogCategory.PANEL, `創建提醒成功: ${newAlert.id}`);
+                                this._panel.webview.postMessage({
+                                    type: 'alertCreated',
+                                    alert: newAlert,
+                                    success: true
+                                });
+                            } else {
+                                this._panel.webview.postMessage({
+                                    type: 'alertCreated',
+                                    success: false,
+                                    error: '創建提醒失敗'
+                                });
+                            }
+                        }).catch(error => {
+                            StockPanel.logger.logError(LogCategory.PANEL, error, '創建提醒失敗');
+                            this._panel.webview.postMessage({
+                                type: 'alertCreated',
+                                success: false,
+                                error: error instanceof Error ? error.message : '創建提醒時發生未知錯誤'
+                            });
+                        });
+                        break;
+                    case 'updateAlert':
+                        // 更新提醒
+                        useAlertStore.getState().updateAlert(message.alertId, message.alertData).then(updatedAlert => {
+                            if (updatedAlert) {
+                                StockPanel.logger.log(LogCategory.PANEL, `更新提醒成功: ${updatedAlert.id}`);
+                                this._panel.webview.postMessage({
+                                    type: 'alertUpdated',
+                                    alert: updatedAlert,
+                                    success: true
+                                });
+                            } else {
+                                this._panel.webview.postMessage({
+                                    type: 'alertUpdated',
+                                    success: false,
+                                    error: '更新提醒失敗'
+                                });
+                            }
+                        }).catch(error => {
+                            StockPanel.logger.logError(LogCategory.PANEL, error, '更新提醒失敗');
+                            this._panel.webview.postMessage({
+                                type: 'alertUpdated',
+                                success: false,
+                                error: error instanceof Error ? error.message : '更新提醒時發生未知錯誤'
+                            });
+                        });
+                        break;
+                    case 'deleteAlert':
+                        // 刪除提醒
+                        useAlertStore.getState().deleteAlert(message.alertId).then(success => {
+                            StockPanel.logger.log(LogCategory.PANEL, `刪除提醒 ${message.alertId} ${success ? '成功' : '失敗'}`);
+                            this._panel.webview.postMessage({
+                                type: 'alertDeleted',
+                                alertId: message.alertId,
+                                success: success
+                            });
+                        }).catch(error => {
+                            StockPanel.logger.logError(LogCategory.PANEL, error, '刪除提醒失敗');
+                            this._panel.webview.postMessage({
+                                type: 'alertDeleted',
+                                alertId: message.alertId,
+                                success: false,
+                                error: error instanceof Error ? error.message : '刪除提醒時發生未知錯誤'
+                            });
+                        });
+                        break;
+                    case 'getAlertHistory':
+                        // 獲取提醒歷史
+                        useAlertStore.getState().fetchAlertHistory(message.filters).then(() => {
+                            const history = useAlertStore.getState().alertHistory;
+                            StockPanel.logger.log(LogCategory.PANEL, `獲取提醒歷史成功: ${history.length} 筆記錄`);
+                            this._panel.webview.postMessage({
+                                type: 'updateAlertHistory',
+                                history: history,
+                                success: true
+                            });
+                        }).catch(error => {
+                            StockPanel.logger.logError(LogCategory.PANEL, error, '獲取提醒歷史失敗');
+                            this._panel.webview.postMessage({
+                                type: 'updateAlertHistory',
+                                history: [],
+                                success: false,
+                                error: error instanceof Error ? error.message : '獲取提醒歷史時發生未知錯誤'
+                            });
+                        });
+                        break;
+                    case 'getAlertHistoryByAlertId':
+                        // 獲取特定提醒的歷史
+                        useAlertStore.getState().fetchAlertHistoryByAlertId(message.alertId).then(history => {
+                            StockPanel.logger.log(LogCategory.PANEL, `獲取提醒 ${message.alertId} 歷史成功: ${history.length} 筆記錄`);
+                            this._panel.webview.postMessage({
+                                type: 'updateAlertHistoryByAlertId',
+                                alertId: message.alertId,
+                                history: history,
+                                success: true
+                            });
+                        }).catch(error => {
+                            StockPanel.logger.logError(LogCategory.PANEL, error, `獲取提醒 ${message.alertId} 歷史失敗`);
+                            this._panel.webview.postMessage({
+                                type: 'updateAlertHistoryByAlertId',
+                                alertId: message.alertId,
+                                history: [],
+                                success: false,
+                                error: error instanceof Error ? error.message : '獲取提醒歷史時發生未知錯誤'
+                            });
+                        });
+                        break;
                 }
             },
             null,
@@ -326,6 +607,7 @@ export class StockPanel {
         this._disposables.push({ dispose: () => {
             this._unsubscribeStockStore?.();
             this._unsubscribeIndiceStore?.();
+            this._unsubscribeAlertStore?.();
             unsubscribeWs();
             unsubscribeSessionStore();
         }});

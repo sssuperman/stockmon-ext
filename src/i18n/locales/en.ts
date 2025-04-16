@@ -1,4 +1,4 @@
 commands: {
     // ... existing commands
-    showSessionInfo: 'Show Session Info'
-} 
+    showSessionInfo: 'Show Session Info';
+}; 

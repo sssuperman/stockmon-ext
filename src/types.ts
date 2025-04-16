@@ -45,7 +45,7 @@ export interface StockInventory {
     type: string;
     exchange: string;
     market: string;
-    alerts: PriceAlert[];
+    alerts: (PriceAlert | StockAlert)[];
     isSubscribed: boolean;
     cost?: StockCostData;
     profit?: number;
@@ -108,6 +108,18 @@ export interface PriceAlert {
     price: number;
     type: 'above' | 'below';
     triggered: boolean;
+}
+
+export interface StockAlert {
+    id: string;
+    type: string;
+    message: string;
+    timestamp: string;
+    threshold?: number;
+    currentValue?: number;
+    price?: number;
+    formattedTime?: string;
+    timezone?: string;
 }
 
 export interface ExtendedWebSocket {

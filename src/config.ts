@@ -93,9 +93,15 @@ export const urls = {
         multiCandles5m: `${config.API_BASE_URL}/stocks/candles/multi/5m/async`
     },
     alerts: {
-        list: `${config.API_BASE_URL}/user/alerts`,
-        create: `${config.API_BASE_URL}/user/alerts`,
-        delete: (id: number) => `${config.API_BASE_URL}/user/alerts/${id}`
+        list: `${config.API_BASE_URL}/alerts/`,
+        create: `${config.API_BASE_URL}/alerts/`,
+        delete: (id: number) => `${config.API_BASE_URL}/alerts/${id}/`,
+        detail: (id: number) => `${config.API_BASE_URL}/alerts/${id}/`,
+        update: (id: number) => `${config.API_BASE_URL}/alerts/${id}/`,
+        reset: (id: number) => `${config.API_BASE_URL}/alerts/${id}/reset`,
+        history: `${config.API_BASE_URL}/test-alert/alert-history/`,
+        historyDetail: (id: number) => `${config.API_BASE_URL}/test-alert/alert-history/${id}/`,
+        alertHistory: (alertId: number) => `${config.API_BASE_URL}/alerts/${alertId}/history/`
     },
     feedback: {
         submit: `${config.API_BASE_URL}/feedback/submit/`,

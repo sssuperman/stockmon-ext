@@ -1,7 +1,6 @@
 import React from 'react';
 import { VSCodeButton, VSCodeDivider } from '@vscode/webview-ui-toolkit/react';
-import { StockInventory } from '../../../src/types';
-import { vscode } from '../utilities/vscode';
+import { StockInventory } from '../types';
 import './StockList.css'; // Reusing the same CSS
 import { BsArrowLeft } from 'react-icons/bs';
 
@@ -280,7 +279,7 @@ export const StockDetail: React.FC<StockDetailProps> = ({ stock, onBack }) => {
                     </div>
                     <div className="market-info-item">
                         <div className="info-label">中立盤</div>
-                        <div className="info-value">{formatVolume(stock.neutralVolume ?? (stock.volume - (stock.inVolume ?? stock.total?.tradeVolumeAtBid ?? 0) - (stock.outVolume ?? stock.total?.tradeVolumeAtAsk ?? 0)) ?? 0)}</div>
+                        <div className="info-value">{formatVolume(stock.neutralVolume ?? (stock.volume ?? 0) - (stock.inVolume ?? stock.total?.tradeVolumeAtBid ?? 0) - (stock.outVolume ?? stock.total?.tradeVolumeAtAsk ?? 0))}</div>
                     </div>
                 </div>
             </div>

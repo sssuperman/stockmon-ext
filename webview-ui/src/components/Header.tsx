@@ -1,16 +1,13 @@
 import React, { useState } from 'react';
-import { WebSocketState } from '../../../src/types';
+import { WebSocketState } from '../types';
 import { VSCodeButton } from '@vscode/webview-ui-toolkit/react';
 import { vscode } from '../utilities/vscode';
 import './Header.css';
+import { SessionInfo } from './FeedbackButton';
 
 interface HeaderProps {
     wsState: WebSocketState;
-    sessionInfo?: {
-        user?: string;
-        email?: string;
-        is_authenticated: boolean;
-    };
+    sessionInfo?: SessionInfo;
 }
 
 export const Header: React.FC<HeaderProps> = ({ wsState, sessionInfo }) => {
