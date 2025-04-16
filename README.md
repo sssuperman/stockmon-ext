@@ -8,19 +8,29 @@ A powerful VSCode extension for monitoring Taiwan stock market prices in real-ti
 
 - 🔄 Real-time stock price monitoring in VSCode status bar
   - 在 VS Code 狀態欄即時顯示股價資訊
-- 📊 Support multiple stock symbols simultaneously
-  - 支援多支股票同時監控
+- 📊 Support multiple stock symbols simultaneously. Support for daily price chart
+  - 支援多支股票同時監控，支援當日走勢縮圖
 - ⏰ Automatic updates
   - 自動定時更新
 - 📈 Price change indicators (up/down)
   - 股價漲跌顯示
-- 🔔 Price alerts and notifications
-  - 價格提醒通知功能
+- 🔔 Advanced stock alerts and notifications
+  - 進階股票提醒通知功能，支援多種提醒類型
 - 🔐 Secure login system for data synchronization
   - 安全的登入系統，支援資料同步
 - 🌐 WebSocket support for real-time updates
   - WebSocket 支援，提供即時更新
 
+## Screenshots 截圖
+
+
+### Stock Monitor Main Interface
+
+<img src="docs/screenshot.png" width="50%" height="50%">
+
+### Alert Functionality
+
+<img src="docs/alert.png" width="50%" height="50%">
 ## Installation 安裝方式
 
 1. Open VSCode
@@ -35,6 +45,8 @@ A powerful VSCode extension for monitoring Taiwan stock market prices in real-ti
    輸入 "StockMon: Add Stock Symbol" 來新增要監控的股票
 3. Stock prices will appear in the VSCode status bar and update automatically
    股價會顯示在 VS Code 下方的狀態欄，並自動更新
+4. Type "StockMon: Show Alerts" to manage stock price alerts
+   輸入 "StockMon: Show Alerts" 來管理股票提醒
 
 ## Settings 設定選項
 
@@ -74,6 +86,16 @@ This extension provides the following settings:
   透過 email 發送回饋
 
 ## Release Notes 版本資訊
+
+### 0.3.0
+- Added comprehensive stock alert system with multiple alert types
+  - 新增全面的股票提醒系統，支援多種提醒類型
+- Added alert history and management interface
+  - 新增提醒歷史記錄及管理介面
+- Improved WebSocket connection for real-time alert notifications
+  - 改進WebSocket連接，提供即時提醒通知
+- Refactored extension architecture for better maintainability
+  - 重構擴展架構，提高可維護性
 
 ### 0.2.7
 - Changed login button title from "Login" to "Sign In" and logout button title from "Logout" to "Sign Out"
